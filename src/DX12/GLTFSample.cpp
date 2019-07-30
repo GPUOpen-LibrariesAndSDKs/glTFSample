@@ -100,7 +100,7 @@ void GLTFSample::OnCreate(HWND hWnd)
 void GLTFSample::OnDestroy()
 {
     ImGUI_Shutdown();
-    
+
     m_device.GPUFlush();
 
     // Fullscreen state should always be false before exiting the app.
@@ -149,7 +149,7 @@ void GLTFSample::SetFullScreen(bool fullscreen)
 {
     m_device.GPUFlush();
 
-    m_swapChain.SetFullScreen(fullscreen);    
+    m_swapChain.SetFullScreen(fullscreen);
 }
 
 //--------------------------------------------------------------------------------------
@@ -224,7 +224,7 @@ void GLTFSample::OnRender()
             ImGui::Checkbox("Play", &m_bPlay);
             ImGui::SliderFloat("Time", &m_time, 0, 30);
         }
-      
+
         if (ImGui::CollapsingHeader("Model Selection", ImGuiTreeNodeFlags_DefaultOpen))
         {
             const char * models[] = { "busterDrone", "BoomBox", "SciFiHelmet", "DamagedHelmet", "Sponza", "MetalRoughSpheres" };
@@ -250,42 +250,42 @@ void GLTFSample::OnRender()
                 bool res = false;
                 switch (selected)
                 {
-                case 0: 
+                case 0:
                     m_state.iblFactor = 1.0f;
                     m_state.emmisiveFactor = 30.0f;
                     m_state.spotlight[0].intensity = 50.0f;
                     m_roll = 0.0f; m_pitch = 0.0f; m_distance = 3.5f;
                     m_state.camera.LookAt(m_roll, m_pitch, m_distance, XMVectorSet(0, 0, 0, 0));
                     res = m_pGltfLoader->Load("..\\..\\cauldron-media\\buster_drone\\", "busterDrone.gltf"); break;
-                case 1: 
+                case 1:
                     m_state.iblFactor = 1.0f;
                     m_state.emmisiveFactor = 1.0f;
                     m_state.spotlight[0].intensity = 50.0f;
                     m_roll = 0.0f; m_pitch = 0.0f; m_distance = 3.5f;
                     m_state.camera.LookAt(m_roll, m_pitch, m_distance, XMVectorSet(0, 0, 0, 0));
                     res = m_pGltfLoader->Load("..\\..\\cauldron-media\\BoomBox\\glTF\\", "BoomBox.gltf"); break;
-                case 2: 
+                case 2:
                     m_state.iblFactor = 1.0f;
                     m_state.emmisiveFactor = 1.0f;
                     m_state.spotlight[0].intensity = 50.0f;
                     m_roll = 0.0f; m_pitch = 0.0f; m_distance = 3.5f;
                     m_state.camera.LookAt(m_roll, m_pitch, m_distance, XMVectorSet(0, 0, 0, 0));
                     res = m_pGltfLoader->Load("..\\..\\cauldron-media\\SciFiHelmet\\glTF\\", "SciFiHelmet.gltf"); break;
-                case 3: 
+                case 3:
                     m_state.iblFactor = 2.0f;
                     m_state.emmisiveFactor = 1.0f;
                     m_state.spotlight[0].intensity = 50.0f;
                     m_roll = 0.0f; m_pitch = 0.0f; m_distance = 3.5f;
                     m_state.camera.LookAt(m_roll, m_pitch, m_distance, XMVectorSet(0, 0, 0, 0));
                     res = m_pGltfLoader->Load("..\\..\\cauldron-media\\DamagedHelmet\\glTF\\", "DamagedHelmet.gltf"); break;
-                case 4: 
+                case 4:
                     m_state.iblFactor = 0.36f;
                     m_state.emmisiveFactor = 1.0f;
                     m_state.spotlight[0].intensity = 10.0f;
                     m_pitch = 0.182035938f; m_roll = 1.92130506f; m_distance = 4.83333349f;
                     m_state.camera.LookAt(m_roll, m_pitch, m_distance, XMVectorSet(0.703276634f, 1.02280307f, 0.218072295f, 0));
                     res = m_pGltfLoader->Load("..\\..\\cauldron-media\\sponza\\gltf\\", "sponza.gltf"); break;
-                case 5: 
+                case 5:
                     m_state.iblFactor = 1.0f;
                     m_state.emmisiveFactor = 1.0f;
                     m_state.spotlight[0].intensity = 50.0f;
@@ -312,14 +312,14 @@ void GLTFSample::OnRender()
             }
 
             ImGui::SliderFloat("exposure", &m_state.exposure, 0.0f, 4.0f);
-            ImGui::SliderFloat("emmisive", &m_state.emmisiveFactor, 1.0f, 1000.0f, NULL, 1.0f); 
+            ImGui::SliderFloat("emmisive", &m_state.emmisiveFactor, 1.0f, 1000.0f, NULL, 1.0f);
             ImGui::SliderFloat("iblFactor", &m_state.iblFactor, 0.0f, 3.0f);
             ImGui::SliderFloat("spotLightIntensity 0", &m_state.spotlight[0].intensity, 0.0f, 50.0f);
         }
 
         const char * tonemappers[] = { "Timothy", "DX11DSK", "Reinhard", "Uncharted2Tonemap", "ACES", "No tonemapper" };
         ImGui::Combo("tone mapper", &m_state.toneMapper, tonemappers, _countof(tonemappers));
-        
+
         const char * skyDomeType[] = { "Procedural Sky", "cubemap", "Simple clear" };
         ImGui::Combo("SkyDome", &m_state.skyDomeType, skyDomeType, _countof(skyDomeType));
 
@@ -362,7 +362,7 @@ void GLTFSample::OnRender()
         // If the mouse was not used by the GUI then it's for the camera
         //
         ImGuiIO& io = ImGui::GetIO();
-        if (io.WantCaptureMouse == false) 
+        if (io.WantCaptureMouse == false)
         {
             if ((io.KeyCtrl == false) && (io.MouseDown[0] == true))
             {
@@ -388,7 +388,7 @@ void GLTFSample::OnRender()
 
                 bool panning = (io.KeyCtrl == true) && (io.MouseDown[0] == true);
 
-                m_state.camera.UpdateCameraPolar(m_roll, m_pitch, panning ? -io.MouseDelta.x / 100.0f : 0.0f, panning ? io.MouseDelta.y / 100.0f : 0.0f, m_distance );
+                m_state.camera.UpdateCameraPolar(m_roll, m_pitch, panning ? -io.MouseDelta.x / 100.0f : 0.0f, panning ? io.MouseDelta.y / 100.0f : 0.0f, m_distance);
             }
         }
     }
@@ -404,7 +404,7 @@ void GLTFSample::OnRender()
     if (m_bPlay)
     {
         m_time += (float)m_deltaTime / 1000.0f;
-    }    
+    }
 
     // Animate and transform the scene
     //
@@ -419,7 +419,7 @@ void GLTFSample::OnRender()
     // Do Render frame using AFR 
     //
     m_Node->OnRender(&m_state, &m_swapChain);
-    
+
     m_swapChain.Present();
 }
 
@@ -437,7 +437,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
     LPCSTR Name = "SampleDX12 v1.0";
     uint32_t Width = 1280;
     uint32_t Height = 720;
-    
+
     // create new DX sample
     return RunFramework(hInstance, lpCmdLine, nCmdShow, Width, Height, new GLTFSample(Name));
 }

@@ -47,7 +47,7 @@ void SampleRenderer::OnCreate(Device* pDevice, SwapChain *pSwapChain)
     m_CommandListRing.OnCreate(pDevice, backBufferCount + 1, commandListsPerBackBuffer, pDevice->GetGraphicsQueue()->GetDesc());
 
     // Create a 'dynamic' constant buffer
-    const uint32_t constantBuffersMemSize = 20 * 1024 * 1024;    
+    const uint32_t constantBuffersMemSize = 20 * 1024 * 1024;
     m_ConstantBufferRing.OnCreate(pDevice, backBufferCount, constantBuffersMemSize, &m_resourceViewHeaps);
 
     // Create a 'static' pool for vertices, indices and constant buffers
@@ -66,7 +66,7 @@ void SampleRenderer::OnCreate(Device* pDevice, SwapChain *pSwapChain)
     m_resourceViewHeaps.AllocDSVDescriptor(1, &m_depthBufferDSV);
 
     // Create a Shadowmap atlas to hold 4 cascades/spotlights
-    m_shadowMap.InitDepthStencil(pDevice, "m_pShadowMap", &CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32_TYPELESS, 2*1024, 2*1024, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL));
+    m_shadowMap.InitDepthStencil(pDevice, "m_pShadowMap", &CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32_TYPELESS, 2 * 1024, 2 * 1024, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL));
     m_resourceViewHeaps.AllocDSVDescriptor(1, &m_ShadowMapDSV);
     m_shadowMap.CreateDSV(0, &m_ShadowMapDSV);
 
@@ -152,13 +152,13 @@ void SampleRenderer::OnCreateWindowSizeDependentResources(SwapChain *pSwapChain,
     CD3DX12_RESOURCE_DESC RDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R16G16B16A16_FLOAT, Width, Height, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
     m_HDR.InitRenderTarget(m_pDevice, "HDR", &RDesc, D3D12_RESOURCE_STATE_RENDER_TARGET);
     m_HDR.CreateSRV(0, &m_HDRSRV);
-    m_HDR.CreateRTV(0, &m_HDRRTV);   
+    m_HDR.CreateRTV(0, &m_HDRRTV);
 
     // update bloom and downscaling effect
     //
     {
         m_downSample.OnCreateWindowSizeDependentResources(m_Width, m_Height, &m_HDR, 5); //downsample the HDR texture 5 times
-        m_bloom.OnCreateWindowSizeDependentResources(m_Width /2 , m_Height / 2, m_downSample.GetTexture(), 5, &m_HDR);
+        m_bloom.OnCreateWindowSizeDependentResources(m_Width / 2, m_Height / 2, m_downSample.GetTexture(), 5, &m_HDR);
     }
 }
 
@@ -233,7 +233,7 @@ int SampleRenderer::LoadScene(GLTFCommon *pGLTFCommon, int stage)
     else if (stage == 8)
     {
         Profile p("m_gltfPBR->OnCreate");
-        
+
         // same thing as above but for the PBR pass
         m_gltfPBR = new GltfPbrPass();
         m_gltfPBR->OnCreate(
@@ -336,12 +336,12 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
     //
     UINT64 gpuTicksPerSecond;
     m_pDevice->GetGraphicsQueue()->GetTimestampFrequency(&gpuTicksPerSecond);
-    
+
     // Let our resource managers do some house keeping 
     //
     m_ConstantBufferRing.OnBeginFrame();
     m_GPUTimer.OnBeginFrame(gpuTicksPerSecond, &m_TimeStamps);
-    
+
     // Sets the perFrame data (Camera and lights data), override as necessary and set them as constant buffers --------------
     //
     per_frame *pPerFrame = NULL;
@@ -415,7 +415,7 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
     // Render to shadow map atlas for spot lights ------------------------------------------
     //
     if (m_gltfDepth && pPerFrame != NULL)
-    {        
+    {
         uint32_t shadowMapIndex = 0;
         for (uint32_t i = 0; i < pPerFrame->lightCount; i++)
         {
@@ -434,10 +434,10 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
             cbDepthPerFrame->mViewProj = pPerFrame->lights[i].mLightViewProj;
 
             m_gltfDepth->Draw(pCmdLst1);
-            
+
             m_GPUTimer.GetTimeStamp(pCmdLst1, "Shadow map");
             shadowMapIndex++;
-        }        
+        }
     }
 
     // Render Scene to the MSAA HDR RT ------------------------------------------------
@@ -498,11 +498,11 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
         //
         if (pState->bDrawLightFrustum && pPerFrame != NULL)
         {
-            UserMarker(pCmdLst1, "light frustrums");
+            UserMarker marker(pCmdLst1, "light frustrums");
 
             XMVECTOR vCenter = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
             XMVECTOR vRadius = XMVectorSet(1.0f, 1.0f, 1.0f, 0.0f);
-            XMVECTOR vColor  = XMVectorSet(1.0f, 1.0f, 1.0f, 1.0f);
+            XMVECTOR vColor = XMVectorSet(1.0f, 1.0f, 1.0f, 1.0f);
             for (uint32_t i = 0; i < pPerFrame->lightCount; i++)
             {
                 XMMATRIX spotlightMatrix = XMMatrixInverse(NULL, pPerFrame->lights[i].mLightViewProj);
@@ -520,7 +520,7 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
     // Resolve MSAA ------------------------------------------------------------------------
     //
     {
-        UserMarker(pCmdLst1, "Resolving MSAA");
+        UserMarker marker(pCmdLst1, "Resolving MSAA");
 
         D3D12_RESOURCE_BARRIER preResolve[2] = {
             CD3DX12_RESOURCE_BARRIER::Transition(m_HDR.GetResource(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RESOLVE_DEST),
@@ -589,7 +589,7 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
 
         m_GPUTimer.GetTimeStamp(pCmdLst2, "ImGUI Rendering");
     }
-    
+
     // Transition swapchain into present mode
 
     pCmdLst2->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(pSwapChain->GetCurrentBackBufferResource(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
