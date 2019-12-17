@@ -47,12 +47,16 @@ public:
     void SetFullScreen(bool fullscreen);
     
 private:
-    Device m_device;
+    Device                m_device;
     SwapChain             m_swapChain;
 
-    GLTFCommon           *m_pGltfLoader;
+    DisplayModes              m_currentDisplayMode;
+    std::vector<DisplayModes> m_displayModesAvailable;
+    std::vector<const char *> m_displayModesNamesAvailable;
 
-    SampleRenderer       *m_Node;
+    GLTFCommon           *m_pGltfLoader = NULL;
+
+    SampleRenderer       *m_Node = NULL;
     SampleRenderer::State m_state;
 
     float                 m_distance;

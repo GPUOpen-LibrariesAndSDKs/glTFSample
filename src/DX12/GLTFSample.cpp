@@ -30,6 +30,7 @@ GLTFSample::GLTFSample(LPCSTR name) : FrameworkWindows(name)
     m_bPlay = true;
 
     m_pGltfLoader = NULL;
+    m_currentDisplayMode = DISPLAYMODE_SDR;
 }
 
 //--------------------------------------------------------------------------------------
@@ -56,8 +57,9 @@ void GLTFSample::OnCreate(HWND hWnd)
 
     // Create Swapchain
     //
+
     uint32_t dwNumberOfBackBuffers = 2;
-    m_swapChain.OnCreate(&m_device, dwNumberOfBackBuffers, hWnd);
+    m_swapChain.OnCreate(&m_device, dwNumberOfBackBuffers, hWnd, DISPLAYMODE_SDR);
 
     // Create a instance of the renderer and initialize it, we need to do that for each GPU
     //
@@ -104,7 +106,7 @@ void GLTFSample::OnDestroy()
     m_device.GPUFlush();
 
     // Fullscreen state should always be false before exiting the app.
-    m_swapChain.SetFullScreen(false);
+    SetFullScreen(false);
 
     m_Node->UnloadScene();
     m_Node->OnDestroyWindowSizeDependentResources();
@@ -149,6 +151,10 @@ void GLTFSample::SetFullScreen(bool fullscreen)
 {
     m_device.GPUFlush();
 
+    // when going to windowed make sure we are always using SDR
+    if ((fullscreen == false) && (m_currentDisplayMode != DISPLAYMODE_SDR))
+        m_currentDisplayMode = DISPLAYMODE_SDR;
+
     m_swapChain.SetFullScreen(fullscreen);
 }
 
@@ -159,31 +165,35 @@ void GLTFSample::SetFullScreen(bool fullscreen)
 //--------------------------------------------------------------------------------------
 void GLTFSample::OnResize(uint32_t width, uint32_t height)
 {
-    if (m_Width != width || m_Height != height)
-    {
-        // Flush GPU
-        //
-        m_device.GPUFlush();
+    // Flush GPU
+    //
+    m_device.GPUFlush();
 
-        // If resizing but no minimizing
-        //
-        if (m_Width > 0 && m_Height > 0)
+    // If resizing but no minimizing
+    //
+    if (m_Width > 0 && m_Height > 0)
+    {
+        if (m_Node!=NULL)
         {
             m_Node->OnDestroyWindowSizeDependentResources();
-            m_swapChain.OnDestroyWindowSizeDependentResources();
         }
+        m_swapChain.OnDestroyWindowSizeDependentResources();
+    }
 
-        m_Width = width;
-        m_Height = height;
+    m_Width = width;
+    m_Height = height;
 
-        // if resizing but not minimizing the recreate it with the new size
-        //
-        if (m_Width > 0 && m_Height > 0)
+    // if resizing but not minimizing the recreate it with the new size
+    //
+    if (m_Width > 0 && m_Height > 0)
+    {
+        m_swapChain.OnCreateWindowSizeDependentResources(m_Width, m_Height, false, m_currentDisplayMode);
+        if (m_Node != NULL)
         {
-            m_swapChain.OnCreateWindowSizeDependentResources(m_Width, m_Height);
             m_Node->OnCreateWindowSizeDependentResources(&m_swapChain, m_Width, m_Height);
         }
     }
+
     m_state.camera.SetFov(XM_PI / 4, m_Width, m_Height, 0.1f, 1000.0f);
 }
 
@@ -210,6 +220,8 @@ void GLTFSample::OnRender()
     {
         ImGuiStyle& style = ImGui::GetStyle();
         style.FrameBorderSize = 1.0f;
+
+        ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_FirstUseEver);
 
         bool opened = true;
         ImGui::Begin("Stats", &opened);

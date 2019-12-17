@@ -40,9 +40,8 @@ void SampleRenderer::OnCreate(Device *pDevice, SwapChain *pSwapChain)
     m_resourceViewHeaps.OnCreate(pDevice, cbvDescriptorCount, srvDescriptorCount, uavDescriptorCount, samplerDescriptorCount);
 
     // Create a commandlist ring for the Direct queue
-    // We are queuing (backBufferCount + 0.5) frames, so we need to triple buffer the command lists
     uint32_t commandListsPerBackBuffer = 8;
-    m_CommandListRing.OnCreate(pDevice, backBufferCount + 1, commandListsPerBackBuffer);
+    m_CommandListRing.OnCreate(pDevice, backBufferCount, commandListsPerBackBuffer);
 
     // Create a 'dynamic' constant buffer
     const uint32_t constantBuffersMemSize = 20 * 1024 * 1024;
@@ -50,9 +49,7 @@ void SampleRenderer::OnCreate(Device *pDevice, SwapChain *pSwapChain)
 
     // Create a 'static' pool for vertices and indices 
     const uint32_t staticGeometryMemSize = 128 * 1024 * 1024;
-    const uint32_t systemGeometryMemSize = 32 * 1024;    
     m_VidMemBufferPool.OnCreate(pDevice, staticGeometryMemSize, USE_VID_MEM, "StaticGeom");
-    m_SysMemBufferPool.OnCreate(pDevice, systemGeometryMemSize, false, "PostProcGeom");
 
     // initialize the GPU time stamps module
     m_GPUTimer.OnCreate(pDevice, backBufferCount);
@@ -60,7 +57,7 @@ void SampleRenderer::OnCreate(Device *pDevice, SwapChain *pSwapChain)
     // Quick helper to upload resources, it has it's own commandList and uses suballocation.
     // for 4K textures we'll need 100Megs
     const uint32_t uploadHeapMemSize = 1000 * 1024 * 1024;
-    m_UploadHeap.OnCreate(pDevice, staticGeometryMemSize);    // initialize an upload heap (uses suballocation for faster results)
+    m_UploadHeap.OnCreate(pDevice, uploadHeapMemSize);    // initialize an upload heap (uses suballocation for faster results)
 
     // Create a 2Kx2K Shadowmap atlas to hold 4 cascades/spotlights
     m_shadowMap.InitDepthStencil(m_pDevice, 2 * 1024, 2 * 1024, VK_FORMAT_D32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, "ShadowMap");
@@ -133,7 +130,7 @@ void SampleRenderer::OnCreate(Device *pDevice, SwapChain *pSwapChain)
         /* Need attachments for render target and depth buffer */
         VkAttachmentDescription attachments[2];
 
-        // color MSAA RT
+        // color HDR MSAA RT
         attachments[0].format = VK_FORMAT_R16G16B16A16_SFLOAT;
         attachments[0].samples = VK_SAMPLE_COUNT_4_BIT;
         attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -184,6 +181,52 @@ void SampleRenderer::OnCreate(Device *pDevice, SwapChain *pSwapChain)
         assert(res == VK_SUCCESS);
     }
 
+    // Create HDR render pass color
+    //
+    {
+        /* Need attachments for render target and depth buffer */
+        VkAttachmentDescription attachments[1];
+
+        // color HDR RT
+        attachments[0].format = VK_FORMAT_R16G16B16A16_SFLOAT;
+        attachments[0].samples = VK_SAMPLE_COUNT_1_BIT;
+        attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+        attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        attachments[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        attachments[0].initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        attachments[0].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        attachments[0].flags = 0;
+
+        VkAttachmentReference color_reference = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+
+        VkSubpassDescription subpass = {};
+        subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpass.flags = 0;
+        subpass.inputAttachmentCount = 0;
+        subpass.pInputAttachments = NULL;
+        subpass.colorAttachmentCount = 1;
+        subpass.pColorAttachments = &color_reference;
+        subpass.pResolveAttachments = NULL;
+        subpass.pDepthStencilAttachment = NULL;
+        subpass.preserveAttachmentCount = 0;
+        subpass.pPreserveAttachments = NULL;
+
+        VkRenderPassCreateInfo rp_info = {};
+        rp_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        rp_info.pNext = NULL;
+        rp_info.attachmentCount = 1;
+        rp_info.pAttachments = attachments;
+        rp_info.subpassCount = 1;
+        rp_info.pSubpasses = &subpass;
+        rp_info.dependencyCount = 0;
+        rp_info.pDependencies = NULL;
+
+        VkResult res = vkCreateRenderPass(m_pDevice->GetDevice(), &rp_info, NULL, &m_render_pass_HDR);
+        assert(res == VK_SUCCESS);
+    }
+
+    // Create post proc and other misc passes
     m_skyDome.OnCreate(pDevice, m_render_pass_HDR_MSAA, &m_UploadHeap, VK_FORMAT_R16G16B16A16_SFLOAT, &m_resourceViewHeaps, &m_ConstantBufferRing, &m_VidMemBufferPool, "..\\..\\cauldron-media\\envmaps\\papermill\\diffuse.dds", "..\\..\\cauldron-media\\envmaps\\papermill\\specular.dds", VK_SAMPLE_COUNT_4_BIT);
     m_skyDomeProc.OnCreate(pDevice, m_render_pass_HDR_MSAA, &m_UploadHeap, VK_FORMAT_R16G16B16A16_SFLOAT, &m_resourceViewHeaps, &m_ConstantBufferRing, &m_VidMemBufferPool, VK_SAMPLE_COUNT_4_BIT);
     m_wireframeBox.OnCreate(pDevice, m_render_pass_HDR_MSAA, &m_resourceViewHeaps, &m_ConstantBufferRing, &m_VidMemBufferPool, VK_SAMPLE_COUNT_4_BIT);
@@ -191,8 +234,8 @@ void SampleRenderer::OnCreate(Device *pDevice, SwapChain *pSwapChain)
     m_bloom.OnCreate(pDevice, &m_resourceViewHeaps, &m_ConstantBufferRing, &m_VidMemBufferPool, VK_FORMAT_R16G16B16A16_SFLOAT);
 
     // Create tonemapping pass
-    m_toneMapping.OnCreate(m_pDevice, pSwapChain->GetRenderPass(), &m_resourceViewHeaps, &m_SysMemBufferPool, &m_ConstantBufferRing);
-    
+    m_toneMappingPS.OnCreate(m_pDevice, pSwapChain->GetRenderPass(), &m_resourceViewHeaps, &m_VidMemBufferPool, &m_ConstantBufferRing);
+
     // Initialize UI rendering resources
     m_ImGUI.OnCreate(m_pDevice, pSwapChain->GetRenderPass(), &m_UploadHeap, &m_ConstantBufferRing);
 
@@ -210,7 +253,7 @@ void SampleRenderer::OnCreate(Device *pDevice, SwapChain *pSwapChain)
 //--------------------------------------------------------------------------------------
 void SampleRenderer::OnDestroy()
 {   
-    m_toneMapping.OnDestroy();
+    m_toneMappingPS.OnDestroy();
     m_ImGUI.OnDestroy();
     m_bloom.OnDestroy();
     m_downSample.OnDestroy();
@@ -230,7 +273,6 @@ void SampleRenderer::OnDestroy()
     m_UploadHeap.OnDestroy();
     m_GPUTimer.OnDestroy();
     m_VidMemBufferPool.OnDestroy();
-    m_SysMemBufferPool.OnDestroy();
     m_ConstantBufferRing.OnDestroy();
     m_resourceViewHeaps.OnDestroy();
     m_CommandListRing.OnDestroy();    
@@ -257,15 +299,15 @@ void SampleRenderer::OnCreateWindowSizeDependentResources(SwapChain *pSwapChain,
 
     // Create scissor rectangle
     //
-    m_scissor.extent.width = Width;
-    m_scissor.extent.height = Height;
-    m_scissor.offset.x = 0;
-    m_scissor.offset.y = 0;
+    m_rectScissor.extent.width = Width;
+    m_rectScissor.extent.height = Height;
+    m_rectScissor.offset.x = 0;
+    m_rectScissor.offset.y = 0;
    
     // Create depth buffer
     //
     m_depthBuffer.InitDepthStencil(m_pDevice, Width, Height, VK_FORMAT_D32_SFLOAT, VK_SAMPLE_COUNT_4_BIT, "DepthBuffer");
-    m_depthBuffer.CreateDSV(&m_depthBufferView);
+    m_depthBuffer.CreateDSV(&m_depthBufferDSV);
 
     // Create Texture + RTV with x4 MSAA
     //
@@ -274,13 +316,14 @@ void SampleRenderer::OnCreateWindowSizeDependentResources(SwapChain *pSwapChain,
 
     // Create Texture + RTV, to hold the resolved scene 
     //
-    m_HDR.InitRendertarget(m_pDevice, m_Width, m_Height, VK_FORMAT_R16G16B16A16_SFLOAT, VK_SAMPLE_COUNT_1_BIT, (VkImageUsageFlags)(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT), false, "HDR");
+    m_HDR.InitRendertarget(m_pDevice, m_Width, m_Height, VK_FORMAT_R16G16B16A16_SFLOAT, VK_SAMPLE_COUNT_1_BIT, (VkImageUsageFlags)(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT), false, "HDR");
     m_HDR.CreateSRV(&m_HDRSRV);
+    m_HDR.CreateSRV(&m_HDRUAV);
 
-    // Create framebuffer for the MSAA RT
+    // Create framebuffer for the HDR MSAA RT
     //
     {
-        VkImageView attachments[2] = { m_HDRMSAASRV, m_depthBufferView };
+        VkImageView attachments[2] = { m_HDRMSAASRV, m_depthBufferDSV };
 
         VkFramebufferCreateInfo fb_info = {};
         fb_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -296,6 +339,26 @@ void SampleRenderer::OnCreateWindowSizeDependentResources(SwapChain *pSwapChain,
         assert(res == VK_SUCCESS);
     }
 
+    // Create framebuffer for the HDR RT
+    //
+    {
+        VkImageView attachments[1] = { m_HDRSRV};
+
+        VkFramebufferCreateInfo fb_info = {};
+        fb_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        fb_info.pNext = NULL;
+        fb_info.renderPass = m_render_pass_HDR;
+        fb_info.attachmentCount = 1;
+        fb_info.pAttachments = attachments;
+        fb_info.width = Width;
+        fb_info.height = Height;
+        fb_info.layers = 1;
+
+        VkResult res = vkCreateFramebuffer(m_pDevice->GetDevice(), &fb_info, NULL, &m_pFrameBuffer_HDR);
+        assert(res == VK_SUCCESS);
+    }
+
+
     // update bloom and downscaling effect
     //
     {
@@ -303,14 +366,11 @@ void SampleRenderer::OnCreateWindowSizeDependentResources(SwapChain *pSwapChain,
         m_bloom.OnCreateWindowSizeDependentResources(m_Width / 2, m_Height / 2, m_downSample.GetTexture(), 6, &m_HDR);
     }
     
-    // update tonemapping 
+    // update the pipelines if the swapchain render pass has changed (for example when the format of the swapchain changes)
     //
-    m_toneMapping.OnCreateWindowSizeDependentResources(m_HDRSRV);
+    m_toneMappingPS.UpdatePipelines(pSwapChain->GetRenderPass());
 
-    // Create frame buffer for the swapchain render targets
-    //
-
- 
+    m_ImGUI.UpdatePipeline(pSwapChain->GetRenderPass());
 }
 
 //--------------------------------------------------------------------------------------
@@ -324,14 +384,16 @@ void SampleRenderer::OnDestroyWindowSizeDependentResources()
     m_downSample.OnDestroyWindowSizeDependentResources();
    
     m_HDR.OnDestroy();
-    m_HDRMSAA.OnDestroy();
+    m_HDRMSAA.OnDestroy();    
     m_depthBuffer.OnDestroy();
 
     vkDestroyFramebuffer(m_pDevice->GetDevice(), m_pFrameBuffer_HDR_MSAA, nullptr);
+    vkDestroyFramebuffer(m_pDevice->GetDevice(), m_pFrameBuffer_HDR, nullptr);    
 
-    vkDestroyImageView(m_pDevice->GetDevice(), m_depthBufferView, nullptr);
+    vkDestroyImageView(m_pDevice->GetDevice(), m_depthBufferDSV, nullptr);
     vkDestroyImageView(m_pDevice->GetDevice(), m_HDRMSAASRV, nullptr);
     vkDestroyImageView(m_pDevice->GetDevice(), m_HDRSRV, nullptr);   
+    vkDestroyImageView(m_pDevice->GetDevice(), m_HDRUAV, nullptr);
 }
 
 //--------------------------------------------------------------------------------------
@@ -542,7 +604,7 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
                 pPerFrame->lights[i].range = 15; //in meters
                 pPerFrame->lights[i].type = LightType_Spot;
                 pPerFrame->lights[i].intensity = pState->spotlight[i].intensity;
-                pPerFrame->lights[i].innerConeCos = cosf(pState->spotlight[i].light.GetFovV()*0.9f/2.0f);
+                pPerFrame->lights[i].innerConeCos = cosf(pState->spotlight[i].light.GetFovV()*0.9f / 2.0f);
                 pPerFrame->lights[i].outerConeCos = cosf(pState->spotlight[i].light.GetFovV() / 2.0f);
                 pPerFrame->lights[i].mLightViewProj = pState->spotlight[i].light.GetView() * pState->spotlight[i].light.GetProjection();
             }
@@ -614,7 +676,7 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
             shadowMapIndex++;
         }
         vkCmdEndRenderPass(cmdBuf1);
-        
+
         SetPerfMarkerEnd(cmdBuf1);
     }
 
@@ -648,7 +710,7 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
 
             vkCmdBeginRenderPass(cmdBuf1, &rp_begin, VK_SUBPASS_CONTENTS_INLINE);
 
-            vkCmdSetScissor(cmdBuf1, 0, 1, &m_scissor);
+            vkCmdSetScissor(cmdBuf1, 0, 1, &m_rectScissor);
             vkCmdSetViewport(cmdBuf1, 0, 1, &m_viewport);
             m_GPUTimer.GetTimeStamp(cmdBuf1, "after color RP");
         }
@@ -680,10 +742,10 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
 
         // Render scene to color buffer
         //
-        if (m_gltfBBox && pPerFrame != NULL)
+        if (m_gltfPBR && pPerFrame != NULL)
         {
             m_gltfPBR->Draw(cmdBuf1);
-            m_GPUTimer.GetTimeStamp(cmdBuf1, "Rendering Scene");            
+            m_GPUTimer.GetTimeStamp(cmdBuf1, "Rendering Scene");
         }
 
         // draw object's bounding boxes
@@ -790,7 +852,7 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
     //
     {
         SetPerfMarkerBegin(cmdBuf1, "post proc");
-        
+
         // Downsample pass
         m_downSample.Draw(cmdBuf1);
         //m_downSample.Gui();
@@ -803,6 +865,7 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
 
         SetPerfMarkerEnd(cmdBuf1);
     }
+
 
     // submit command buffer
     {
@@ -842,30 +905,32 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
 
     SetPerfMarkerBegin(cmdBuf2, "rendering to swap chain");
 
+    // prepare render pass
+    {
+        VkRenderPassBeginInfo rp_begin = {};
+        rp_begin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        rp_begin.pNext = NULL;
+        rp_begin.renderPass = pSwapChain->GetRenderPass();
+        rp_begin.framebuffer = pSwapChain->GetFramebuffer(imageIndex);
+        rp_begin.renderArea.offset.x = 0;
+        rp_begin.renderArea.offset.y = 0;
+        rp_begin.renderArea.extent.width = m_Width;
+        rp_begin.renderArea.extent.height = m_Height;
+        rp_begin.clearValueCount = 0;
+        rp_begin.pClearValues = NULL;
+        vkCmdBeginRenderPass(cmdBuf2, &rp_begin, VK_SUBPASS_CONTENTS_INLINE);
+    }
+
+    vkCmdSetScissor(cmdBuf2, 0, 1, &m_rectScissor);
+    vkCmdSetViewport(cmdBuf2, 0, 1, &m_viewport);
+
+    // non FS2 mode, that is SDR, here we apply the tonemapping from the HDR into the swapchain and then we render the GUI
+    //
+
     // Tonemapping ------------------------------------------------------------------------
     //
     {
-        // prepare render pass
-        {
-            VkRenderPassBeginInfo rp_begin = {};
-            rp_begin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-            rp_begin.pNext = NULL;
-            rp_begin.renderPass = pSwapChain->GetRenderPass();
-            rp_begin.framebuffer = pSwapChain->GetFramebuffer(imageIndex);
-            rp_begin.renderArea.offset.x = 0;
-            rp_begin.renderArea.offset.y = 0;
-            rp_begin.renderArea.extent.width = m_Width;
-            rp_begin.renderArea.extent.height = m_Height;
-            rp_begin.clearValueCount = 0;
-            rp_begin.pClearValues = NULL;
-            vkCmdBeginRenderPass(cmdBuf2, &rp_begin, VK_SUBPASS_CONTENTS_INLINE);
-        }
-
-        vkCmdSetScissor(cmdBuf2, 0, 1, &m_scissor);
-        vkCmdSetViewport(cmdBuf2, 0, 1, &m_viewport);
-
-        m_toneMapping.Draw(cmdBuf2, pState->exposure, pState->toneMapper);
-
+        m_toneMappingPS.Draw(cmdBuf2, m_HDRSRV, pState->exposure, pState->toneMapper);
         m_GPUTimer.GetTimeStamp(cmdBuf2, "Tone mapping");
     }
 

@@ -12,8 +12,8 @@
 // C RunTime Header Files
 #include <malloc.h>
 #include <map>
-#include <vector>
 #include <mutex>
+#include <vector>
 #include <fstream>
 
 #include "vulkan/vulkan.h"
@@ -23,40 +23,40 @@
 using namespace DirectX;
 
 // TODO: reference additional headers your program requires here
-#include "Base\Imgui.h"
-#include "Base\ImguiHelper.h"
-#include "Base\Device.h"
-#include "Base\Helper.h"
-#include "Base\Texture.h"
-#include "Base\SwapChain.h"
-#include "Base\UploadHeap.h"
-#include "Base\GPUTimeStamps.h"
-#include "Base\DebugMarkersExt.h"
-#include "Base\CommandListRing.h"
-#include "Base\StaticBufferPool.h"
-#include "Base\DynamicBufferRing.h"
-#include "Base\ResourceViewHeaps.h"
-#include "Base\ShaderCompilerHelper.h"
+#include "Base/Imgui.h"
+#include "Base/ImguiHelper.h"
+#include "Base/Helper.h"
+#include "Base/Device.h"
+#include "Base/Texture.h"
+#include "Base/SwapChain.h"
+#include "Base/UploadHeap.h"
+#include "Base/GPUTimestamps.h"
+#include "Base/ExtDebugMarkers.h"
+#include "Base/CommandListRing.h"
+#include "Base/StaticBufferPool.h"
+#include "Base/DynamicBufferRing.h"
+#include "Base/ResourceViewHeaps.h"
+#include "Base/ShaderCompilerHelper.h"
 
-#include "Misc\Misc.h"
-#include "Misc\Camera.h"
-#include "Misc\FrameworkWindows.h"
+#include "Misc/Misc.h"
+#include "Misc/Camera.h"
+#include "Misc/FrameworkWindows.h"
 
-#include "PostProc\Bloom.h"
-#include "PostProc\BlurPS.h"
-#include "PostProc\SkyDome.h"
-#include "PostProc\ToneMapping.h"
-#include "PostProc\SkyDomeProc.h"
-#include "PostProc\DownSamplePS.h"
+#include "PostProc/Bloom.h"
+#include "PostProc/BlurPS.h"
+#include "PostProc/SkyDome.h"
+#include "PostProc/ToneMapping.h"
+#include "PostProc/SkyDomeProc.h"
+#include "PostProc/DownSamplePS.h"
 
-#include "GLTF\GltfPbrPass.h"
-#include "GLTF\GltfBBoxPass.h"
-#include "GLTF\GltfDepthPass.h"
+#include "GLTF/GltfPbrPass.h"
+#include "GLTF/GltfBBoxPass.h"
+#include "GLTF/GltfDepthPass.h"
 
-#include "Widgets\Axis.h"
-#include "Widgets\CheckerBoardFloor.h"
-#include "Widgets\WireframeBox.h"
-#include "Widgets\WireframeSphere.h"
+#include "Widgets/Axis.h"
+#include "Widgets/CheckerBoardFloor.h"
+#include "Widgets/WireframeBox.h"
+#include "Widgets/WireframeSphere.h"
 
 
 using namespace CAULDRON_VK;

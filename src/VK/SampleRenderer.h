@@ -18,7 +18,8 @@
 // THE SOFTWARE.
 #pragma once
 
-static const int backBufferCount = 2;
+// We are queuing (2 backbuffers + 0.5) frames, so we need to triple buffer the command lists
+static const int backBufferCount = 3;
 
 #define USE_VID_MEM true
 
@@ -75,15 +76,14 @@ private:
     uint32_t m_Width;
     uint32_t m_Height;
 
-    VkRect2D                        m_scissor;
     VkViewport                      m_viewport;
+    VkRect2D                        m_rectScissor;
 
     // Initialize helper classes
     ResourceViewHeaps               m_resourceViewHeaps;
     UploadHeap                      m_UploadHeap;
     DynamicBufferRing               m_ConstantBufferRing;
     StaticBufferPool                m_VidMemBufferPool;
-    StaticBufferPool                m_SysMemBufferPool;
     CommandListRing                 m_CommandListRing;
     GPUTimestamps                   m_GPUTimer;
 
@@ -98,7 +98,7 @@ private:
     SkyDome                         m_skyDome;
     DownSamplePS                    m_downSample;
     SkyDomeProc                     m_skyDomeProc;
-    ToneMapping                     m_toneMapping;
+    ToneMapping                     m_toneMappingPS;
 
     // GUI
     ImGUI			                m_ImGUI;
@@ -107,7 +107,7 @@ private:
 
     // depth buffer
     Texture                         m_depthBuffer;
-    VkImageView                     m_depthBufferView;
+    VkImageView                     m_depthBufferDSV;
 
     // shadowmaps
     Texture                         m_shadowMap;
@@ -116,20 +116,23 @@ private:
 
     // MSAA RT
     Texture                         m_HDRMSAA;
-    VkImageView                     m_HDRSRV;
     VkImageView                     m_HDRMSAASRV;
 
     // Resolved RT
     Texture                         m_HDR;
+    VkImageView                     m_HDRSRV;
+    VkImageView                     m_HDRUAV;
 
     // widgets
     WireframeBox                    m_wireframeBox;
 
     VkRenderPass m_render_pass_shadow;
     VkRenderPass m_render_pass_HDR_MSAA;
+    VkRenderPass m_render_pass_HDR;
 
     VkFramebuffer m_pShadowMapBuffers;
     VkFramebuffer m_pFrameBuffer_HDR_MSAA;
+    VkFramebuffer m_pFrameBuffer_HDR;
 
     std::vector<TimeStamp>          m_TimeStamps;
 };

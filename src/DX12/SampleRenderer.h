@@ -18,7 +18,8 @@
 // THE SOFTWARE.
 #pragma once
 
-static const int backBufferCount = 2;
+// We are queuing (2 backbuffers + 0.5) frames, so we need to triple buffer the command lists
+static const int backBufferCount = 3;
 
 #define USE_VID_MEM true
 
@@ -74,8 +75,8 @@ private:
     uint32_t                        m_Width;
     uint32_t                        m_Height;
 
-    D3D12_VIEWPORT                  m_viewPort;
-    D3D12_RECT                      m_RectScissor;
+    D3D12_VIEWPORT                  m_viewport;
+    D3D12_RECT                      m_rectScissor;
     
 	// Initialize helper classes
 	ResourceViewHeaps               m_resourceViewHeaps;
@@ -97,7 +98,7 @@ private:
     SkyDome                         m_skyDome;
     DownSamplePS                    m_downSample;
     SkyDomeProc                     m_skyDomeProc;
-	ToneMapping                     m_toneMapping;
+	ToneMapping                     m_toneMappingPS;
 
 	// GUI
 	ImGUI                           m_ImGUI;
@@ -110,6 +111,7 @@ private:
 
     // shadowmaps
 	Texture                         m_shadowMap;
+    CBV_SRV_UAV                     m_ShadowMapSRV;
     DSV                             m_ShadowMapDSV;
 
     // MSAA RT
@@ -119,9 +121,11 @@ private:
     // Resolved RT
     Texture                         m_HDR;
     CBV_SRV_UAV                     m_HDRSRV;
+    CBV_SRV_UAV                     m_HDRUAV;
     RTV                             m_HDRRTV;
 
 	// widgets
+    Wireframe                       m_wireframe;
 	WireframeBox                    m_wireframeBox;
 
 	std::vector<TimeStamp>          m_TimeStamps;

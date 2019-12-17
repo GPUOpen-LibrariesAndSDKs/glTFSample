@@ -1,6 +1,6 @@
 // AMD SampleDX12 sample code
 // 
-// Copyright(c) 2017 Advanced Micro Devices, Inc.All rights reserved.
+// Copyright(c) 2018 Advanced Micro Devices, Inc.All rights reserved.
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files(the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
@@ -50,9 +50,13 @@ private:
     Device                m_device;
     SwapChain             m_swapChain;
 
-    GLTFCommon           *m_pGltfLoader;
+    DisplayModes              m_currentDisplayMode;
+    std::vector<DisplayModes> m_displayModesAvailable;
+    std::vector<const char *> m_displayModesNamesAvailable;
 
-    SampleRenderer       *m_Node;
+    GLTFCommon           *m_pGltfLoader = NULL;
+
+    SampleRenderer       *m_Node = NULL;
     SampleRenderer::State m_state;
 
     float                 m_distance;

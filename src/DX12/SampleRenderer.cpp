@@ -42,9 +42,8 @@ void SampleRenderer::OnCreate(Device* pDevice, SwapChain *pSwapChain)
     m_resourceViewHeaps.OnCreate(pDevice, cbvDescriptorCount, srvDescriptorCount, uavDescriptorCount, dsvDescriptorCount, rtvDescriptorCount, samplerDescriptorCount);
 
     // Create a commandlist ring for the Direct queue
-    // We are queuing (backBufferCount + 0.5) frames, so we need to triple buffer the command lists
     uint32_t commandListsPerBackBuffer = 8;
-    m_CommandListRing.OnCreate(pDevice, backBufferCount + 1, commandListsPerBackBuffer, pDevice->GetGraphicsQueue()->GetDesc());
+    m_CommandListRing.OnCreate(pDevice, backBufferCount, commandListsPerBackBuffer, pDevice->GetGraphicsQueue()->GetDesc());
 
     // Create a 'dynamic' constant buffer
     const uint32_t constantBuffersMemSize = 20 * 1024 * 1024;
@@ -65,19 +64,23 @@ void SampleRenderer::OnCreate(Device* pDevice, SwapChain *pSwapChain)
     // Create the depth buffer view
     m_resourceViewHeaps.AllocDSVDescriptor(1, &m_depthBufferDSV);
 
-    // Create a Shadowmap atlas to hold 4 cascades/spotlights
+    // Create a 2Kx2K Shadowmap atlas to hold 4 cascades/spotlights
     m_shadowMap.InitDepthStencil(pDevice, "m_pShadowMap", &CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32_TYPELESS, 2 * 1024, 2 * 1024, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL));
     m_resourceViewHeaps.AllocDSVDescriptor(1, &m_ShadowMapDSV);
+    m_resourceViewHeaps.AllocCBV_SRV_UAVDescriptor(1, &m_ShadowMapSRV);
     m_shadowMap.CreateDSV(0, &m_ShadowMapDSV);
+    m_shadowMap.CreateSRV(0, &m_ShadowMapSRV);
 
+    // Create post proc and other misc passes
     m_skyDome.OnCreate(pDevice, &m_UploadHeap, &m_resourceViewHeaps, &m_ConstantBufferRing, &m_VidMemBufferPool, "..\\..\\cauldron-media\\envmaps\\papermill\\diffuse.dds", "..\\..\\cauldron-media\\envmaps\\papermill\\specular.dds", DXGI_FORMAT_R16G16B16A16_FLOAT, 4);
     m_skyDomeProc.OnCreate(pDevice, &m_resourceViewHeaps, &m_ConstantBufferRing, &m_VidMemBufferPool, DXGI_FORMAT_R16G16B16A16_FLOAT, 4);
-    m_wireframeBox.OnCreate(pDevice, &m_resourceViewHeaps, &m_ConstantBufferRing, &m_VidMemBufferPool, DXGI_FORMAT_R16G16B16A16_FLOAT, 4);
+    m_wireframe.OnCreate(pDevice, &m_resourceViewHeaps, &m_ConstantBufferRing, &m_VidMemBufferPool, DXGI_FORMAT_R16G16B16A16_FLOAT, 4);
+    m_wireframeBox.OnCreate(pDevice, &m_resourceViewHeaps, &m_ConstantBufferRing, &m_VidMemBufferPool);
     m_downSample.OnCreate(pDevice, &m_resourceViewHeaps, &m_ConstantBufferRing, &m_VidMemBufferPool, DXGI_FORMAT_R16G16B16A16_FLOAT);
     m_bloom.OnCreate(pDevice, &m_resourceViewHeaps, &m_ConstantBufferRing, &m_VidMemBufferPool, DXGI_FORMAT_R16G16B16A16_FLOAT);
 
     // Create tonemapping pass
-    m_toneMapping.OnCreate(pDevice, &m_resourceViewHeaps, &m_ConstantBufferRing, &m_VidMemBufferPool, pSwapChain->GetFormat());
+    m_toneMappingPS.OnCreate(pDevice, &m_resourceViewHeaps, &m_ConstantBufferRing, &m_VidMemBufferPool, pSwapChain->GetFormat());
 
     // Initialize UI rendering resources
     m_ImGUI.OnCreate(pDevice, &m_UploadHeap, &m_resourceViewHeaps, &m_ConstantBufferRing, pSwapChain->GetFormat());
@@ -86,6 +89,7 @@ void SampleRenderer::OnCreate(Device* pDevice, SwapChain *pSwapChain)
     m_resourceViewHeaps.AllocRTVDescriptor(1, &m_HDRRTVMSAA);
 
     m_resourceViewHeaps.AllocCBV_SRV_UAVDescriptor(1, &m_HDRSRV);
+    m_resourceViewHeaps.AllocCBV_SRV_UAVDescriptor(1, &m_HDRUAV);
 
     // Make sure upload heap has finished uploading before continuing
 #if (USE_VID_MEM==true)
@@ -101,11 +105,12 @@ void SampleRenderer::OnCreate(Device* pDevice, SwapChain *pSwapChain)
 //--------------------------------------------------------------------------------------
 void SampleRenderer::OnDestroy()
 {
-    m_toneMapping.OnDestroy();
+    m_toneMappingPS.OnDestroy();
     m_ImGUI.OnDestroy();
     m_bloom.OnDestroy();
     m_downSample.OnDestroy();
     m_wireframeBox.OnDestroy();
+    m_wireframe.OnDestroy();
     m_skyDomeProc.OnDestroy();
     m_skyDome.OnDestroy();
     m_shadowMap.OnDestroy();
@@ -130,17 +135,17 @@ void SampleRenderer::OnCreateWindowSizeDependentResources(SwapChain *pSwapChain,
 
     // Set the viewport
     //
-    m_viewPort = { 0.0f, 0.0f, static_cast<float>(Width), static_cast<float>(Height), 0.0f, 1.0f };
+    m_viewport = { 0.0f, 0.0f, static_cast<float>(Width), static_cast<float>(Height), 0.0f, 1.0f };
 
     // Create scissor rectangle
     //
-    m_RectScissor = { 0, 0, (LONG)Width, (LONG)Height };
+    m_rectScissor = { 0, 0, (LONG)Width, (LONG)Height };
 
     // Create depth buffer    
     //
-    m_depthBuffer.InitDepthStencil(m_pDevice, "depthbuffer", &CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32_TYPELESS, Width, Height, 1, 1, 4, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE));
+    m_depthBuffer.InitDepthStencil(m_pDevice, "depthbuffer", &CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32_TYPELESS, Width, Height, 1, 1, 4, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL));
     m_depthBuffer.CreateDSV(0, &m_depthBufferDSV);
-
+    
     // Create Texture + RTV with x4 MSAA
     //
     CD3DX12_RESOURCE_DESC RDescMSAA = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R16G16B16A16_FLOAT, Width, Height, 1, 1, 4, 0, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
@@ -149,17 +154,24 @@ void SampleRenderer::OnCreateWindowSizeDependentResources(SwapChain *pSwapChain,
 
     // Create Texture + RTV, to hold the resolved scene 
     //
-    CD3DX12_RESOURCE_DESC RDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R16G16B16A16_FLOAT, Width, Height, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
+    CD3DX12_RESOURCE_DESC RDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R16G16B16A16_FLOAT, Width, Height, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
     m_HDR.InitRenderTarget(m_pDevice, "HDR", &RDesc, D3D12_RESOURCE_STATE_RENDER_TARGET);
     m_HDR.CreateSRV(0, &m_HDRSRV);
+    m_HDR.CreateUAV(0, &m_HDRUAV);    
     m_HDR.CreateRTV(0, &m_HDRRTV);
 
     // update bloom and downscaling effect
     //
     {
-        m_downSample.OnCreateWindowSizeDependentResources(m_Width, m_Height, &m_HDR, 5); //downsample the HDR texture 5 times
-        m_bloom.OnCreateWindowSizeDependentResources(m_Width / 2, m_Height / 2, m_downSample.GetTexture(), 5, &m_HDR);
+        m_downSample.OnCreateWindowSizeDependentResources(m_Width, m_Height, &m_HDR, 6); //downsample the HDR texture 6 times
+        m_bloom.OnCreateWindowSizeDependentResources(m_Width / 2, m_Height / 2, m_downSample.GetTexture(), 6, &m_HDR);
     }
+
+    // update the pipelines if the swapchain render pass has changed (for example when the format of the swapchain changes)
+    //
+    m_toneMappingPS.UpdatePipelines(pSwapChain->GetFormat());
+    
+    m_ImGUI.UpdatePipeline(pSwapChain->GetFormat());
 }
 
 //--------------------------------------------------------------------------------------
@@ -244,7 +256,7 @@ int SampleRenderer::LoadScene(GLTFCommon *pGLTFCommon, int stage)
             &m_VidMemBufferPool,
             m_pGLTFTexturesAndBuffers,
             &m_skyDome,
-            &m_shadowMap,
+            false ,
             DXGI_FORMAT_R16G16B16A16_FLOAT,
             4
         );
@@ -252,7 +264,7 @@ int SampleRenderer::LoadScene(GLTFCommon *pGLTFCommon, int stage)
     else if (stage == 9)
     {
         Profile p("m_gltfBBox->OnCreate");
-
+        
         // just a bounding box pass that will draw boundingboxes instead of the geometry itself
         m_gltfBBox = new GltfBBoxPass();
         m_gltfBBox->OnCreate(
@@ -262,9 +274,9 @@ int SampleRenderer::LoadScene(GLTFCommon *pGLTFCommon, int stage)
             &m_ConstantBufferRing,
             &m_VidMemBufferPool,
             m_pGLTFTexturesAndBuffers,
-            DXGI_FORMAT_R16G16B16A16_FLOAT,
-            4
+            &m_wireframe
         );
+        
 #if (USE_VID_MEM==true)
         // we are borrowing the upload heap command list for uploading to the GPU the IBs and VBs
         m_VidMemBufferPool.UploadData(m_UploadHeap.GetCommandList());
@@ -389,7 +401,8 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
 
         m_pGLTFTexturesAndBuffers->SetSkinningMatricesForSkeletons();
     }
-
+    
+    
     // command buffer calls
     //    
     ID3D12GraphicsCommandList* pCmdLst1 = m_CommandListRing.GetNewCommandList();
@@ -444,8 +457,8 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
     //
     pCmdLst1->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_shadowMap.GetResource(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
 
-    pCmdLst1->RSSetViewports(1, &m_viewPort);
-    pCmdLst1->RSSetScissorRects(1, &m_RectScissor);
+    pCmdLst1->RSSetViewports(1, &m_viewport);
+    pCmdLst1->RSSetScissorRects(1, &m_rectScissor);
     pCmdLst1->OMSetRenderTargets(1, &m_HDRRTVMSAA.GetCPU(), true, &m_depthBufferDSV.GetCPU());
 
     if (pPerFrame != NULL)
@@ -478,8 +491,7 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
         //    
         if (m_gltfPBR && pPerFrame != NULL)
         {
-            //set per frame constant buffer values
-            m_gltfPBR->Draw(pCmdLst1);
+            m_gltfPBR->Draw(pCmdLst1, &m_ShadowMapSRV);
         }
 
         // draw object's bounding boxes
@@ -507,7 +519,7 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
             {
                 XMMATRIX spotlightMatrix = XMMatrixInverse(NULL, pPerFrame->lights[i].mLightViewProj);
                 XMMATRIX worldMatrix = spotlightMatrix * pPerFrame->mCameraViewProj;
-                m_wireframeBox.Draw(pCmdLst1, worldMatrix, vCenter, vRadius, vColor);
+                m_wireframeBox.Draw(pCmdLst1, &m_wireframe, worldMatrix, vCenter, vRadius, vColor);
             }
 
             m_GPUTimer.GetTimeStamp(pCmdLst1, "Light's frustum");
@@ -568,11 +580,11 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
     // Tonemapping ------------------------------------------------------------------------
     //
     {
-        pCmdLst2->RSSetViewports(1, &m_viewPort);
-        pCmdLst2->RSSetScissorRects(1, &m_RectScissor);
+        pCmdLst2->RSSetViewports(1, &m_viewport);
+        pCmdLst2->RSSetScissorRects(1, &m_rectScissor);
         pCmdLst2->OMSetRenderTargets(1, pSwapChain->GetCurrentBackBufferRTV(), true, NULL);
 
-        m_toneMapping.Draw(pCmdLst2, &m_HDRSRV, pState->exposure, pState->toneMapper);
+        m_toneMappingPS.Draw(pCmdLst2, &m_HDRSRV, pState->exposure, pState->toneMapper);
         m_GPUTimer.GetTimeStamp(pCmdLst2, "Tone mapping");
 
         pCmdLst2->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_HDR.GetResource(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET));
@@ -581,8 +593,8 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
     // Render HUD  ------------------------------------------------------------------------
     //
     {
-        pCmdLst2->RSSetViewports(1, &m_viewPort);
-        pCmdLst2->RSSetScissorRects(1, &m_RectScissor);
+        pCmdLst2->RSSetViewports(1, &m_viewport);
+        pCmdLst2->RSSetScissorRects(1, &m_rectScissor);
         pCmdLst2->OMSetRenderTargets(1, pSwapChain->GetCurrentBackBufferRTV(), true, NULL);
 
         m_ImGUI.Draw(pCmdLst2);
