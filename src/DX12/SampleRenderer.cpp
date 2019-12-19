@@ -67,9 +67,10 @@ void SampleRenderer::OnCreate(Device* pDevice, SwapChain *pSwapChain)
     // Create a 2Kx2K Shadowmap atlas to hold 4 cascades/spotlights
     m_shadowMap.InitDepthStencil(pDevice, "m_pShadowMap", &CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32_TYPELESS, 2 * 1024, 2 * 1024, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL));
     m_resourceViewHeaps.AllocDSVDescriptor(1, &m_ShadowMapDSV);
-    m_resourceViewHeaps.AllocCBV_SRV_UAVDescriptor(1, &m_ShadowMapSRV);
     m_shadowMap.CreateDSV(0, &m_ShadowMapDSV);
+    m_resourceViewHeaps.AllocCBV_SRV_UAVDescriptor(1, &m_ShadowMapSRV);
     m_shadowMap.CreateSRV(0, &m_ShadowMapSRV);
+
 
     // Create post proc and other misc passes
     m_skyDome.OnCreate(pDevice, &m_UploadHeap, &m_resourceViewHeaps, &m_ConstantBufferRing, &m_VidMemBufferPool, "..\\..\\cauldron-media\\envmaps\\papermill\\diffuse.dds", "..\\..\\cauldron-media\\envmaps\\papermill\\specular.dds", DXGI_FORMAT_R16G16B16A16_FLOAT, 4);
@@ -81,9 +82,11 @@ void SampleRenderer::OnCreate(Device* pDevice, SwapChain *pSwapChain)
 
     // Create tonemapping pass
     m_toneMappingPS.OnCreate(pDevice, &m_resourceViewHeaps, &m_ConstantBufferRing, &m_VidMemBufferPool, pSwapChain->GetFormat());
+    m_toneMappingCS.OnCreate(pDevice, &m_resourceViewHeaps, &m_ConstantBufferRing);
+    m_colorConversionPS.OnCreate(pDevice, &m_resourceViewHeaps, &m_ConstantBufferRing, &m_VidMemBufferPool, pSwapChain->GetFormat());
 
     // Initialize UI rendering resources
-    m_ImGUI.OnCreate(pDevice, &m_UploadHeap, &m_resourceViewHeaps, &m_ConstantBufferRing, pSwapChain->GetFormat());
+    m_ImGUI.OnCreate(pDevice, &m_UploadHeap, &m_resourceViewHeaps, &m_ConstantBufferRing, (pSwapChain->GetDisplayMode()== DISPLAYMODE_SDR) ? pSwapChain->GetFormat(): DXGI_FORMAT_R16G16B16A16_FLOAT);
 
     m_resourceViewHeaps.AllocRTVDescriptor(1, &m_HDRRTV);
     m_resourceViewHeaps.AllocRTVDescriptor(1, &m_HDRRTVMSAA);
@@ -105,6 +108,8 @@ void SampleRenderer::OnCreate(Device* pDevice, SwapChain *pSwapChain)
 //--------------------------------------------------------------------------------------
 void SampleRenderer::OnDestroy()
 {
+    m_colorConversionPS.OnDestroy();
+    m_toneMappingCS.OnDestroy();
     m_toneMappingPS.OnDestroy();
     m_ImGUI.OnDestroy();
     m_bloom.OnDestroy();
@@ -143,9 +148,9 @@ void SampleRenderer::OnCreateWindowSizeDependentResources(SwapChain *pSwapChain,
 
     // Create depth buffer    
     //
-    m_depthBuffer.InitDepthStencil(m_pDevice, "depthbuffer", &CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32_TYPELESS, Width, Height, 1, 1, 4, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL));
+    m_depthBuffer.InitDepthStencil(m_pDevice, "depthbuffer", &CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32_TYPELESS, Width, Height, 1, 1, 4, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE));
     m_depthBuffer.CreateDSV(0, &m_depthBufferDSV);
-    
+
     // Create Texture + RTV with x4 MSAA
     //
     CD3DX12_RESOURCE_DESC RDescMSAA = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R16G16B16A16_FLOAT, Width, Height, 1, 1, 4, 0, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
@@ -169,9 +174,10 @@ void SampleRenderer::OnCreateWindowSizeDependentResources(SwapChain *pSwapChain,
 
     // update the pipelines if the swapchain render pass has changed (for example when the format of the swapchain changes)
     //
+    m_colorConversionPS.UpdatePipelines(pSwapChain->GetFormat(), pSwapChain->GetDisplayMode());
     m_toneMappingPS.UpdatePipelines(pSwapChain->GetFormat());
     
-    m_ImGUI.UpdatePipeline(pSwapChain->GetFormat());
+    m_ImGUI.UpdatePipeline((pSwapChain->GetDisplayMode() == DISPLAYMODE_SDR) ? pSwapChain->GetFormat(): DXGI_FORMAT_R16G16B16A16_FLOAT);
 }
 
 //--------------------------------------------------------------------------------------
@@ -256,7 +262,7 @@ int SampleRenderer::LoadScene(GLTFCommon *pGLTFCommon, int stage)
             &m_VidMemBufferPool,
             m_pGLTFTexturesAndBuffers,
             &m_skyDome,
-            false ,
+            false,
             DXGI_FORMAT_R16G16B16A16_FLOAT,
             4
         );
@@ -264,7 +270,7 @@ int SampleRenderer::LoadScene(GLTFCommon *pGLTFCommon, int stage)
     else if (stage == 9)
     {
         Profile p("m_gltfBBox->OnCreate");
-        
+
         // just a bounding box pass that will draw boundingboxes instead of the geometry itself
         m_gltfBBox = new GltfBBoxPass();
         m_gltfBBox->OnCreate(
@@ -276,7 +282,6 @@ int SampleRenderer::LoadScene(GLTFCommon *pGLTFCommon, int stage)
             m_pGLTFTexturesAndBuffers,
             &m_wireframe
         );
-        
 #if (USE_VID_MEM==true)
         // we are borrowing the upload heap command list for uploading to the GPU the IBs and VBs
         m_VidMemBufferPool.UploadData(m_UploadHeap.GetCommandList());
@@ -401,8 +406,7 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
 
         m_pGLTFTexturesAndBuffers->SetSkinningMatricesForSkeletons();
     }
-    
-    
+
     // command buffer calls
     //    
     ID3D12GraphicsCommandList* pCmdLst1 = m_CommandListRing.GetNewCommandList();
@@ -562,6 +566,38 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
         //m_bloom.Gui();
         m_GPUTimer.GetTimeStamp(pCmdLst1, "Bloom");
     }
+    
+    // If using FreeSync2 we need to to the tonemapping in-place and then apply the GUI, later we'll apply the color conversion into the swapchain
+    //
+    if (pSwapChain->GetDisplayMode() != DISPLAYMODE_SDR)    
+    {
+        // In place Tonemapping ------------------------------------------------------------------------
+        //
+        {
+            D3D12_RESOURCE_BARRIER hdrToUAV = CD3DX12_RESOURCE_BARRIER::Transition(m_HDR.GetResource(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            pCmdLst1->ResourceBarrier(1, &hdrToUAV);
+
+            m_toneMappingCS.Draw(pCmdLst1, &m_HDRUAV, pState->exposure, pState->toneMapper, m_Width, m_Height);
+
+            D3D12_RESOURCE_BARRIER hdrToRTV = CD3DX12_RESOURCE_BARRIER::Transition(m_HDR.GetResource(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_RENDER_TARGET);
+            pCmdLst1->ResourceBarrier(1, &hdrToRTV);
+        }
+
+        // Render HUD  ------------------------------------------------------------------------
+        //
+        {
+            pCmdLst1->RSSetViewports(1, &m_viewport);
+            pCmdLst1->RSSetScissorRects(1, &m_rectScissor);
+            pCmdLst1->OMSetRenderTargets(1, &m_HDRRTV.GetCPU(), true, NULL);
+
+            m_ImGUI.Draw(pCmdLst1);
+
+            D3D12_RESOURCE_BARRIER hdrToSRV = CD3DX12_RESOURCE_BARRIER::Transition(m_HDR.GetResource(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+            pCmdLst1->ResourceBarrier(1, &hdrToSRV);
+
+            m_GPUTimer.GetTimeStamp(pCmdLst1, "ImGUI Rendering");
+        }
+    }    
 
     // submit command buffer
 
@@ -577,29 +613,47 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
 
     ID3D12GraphicsCommandList* pCmdLst2 = m_CommandListRing.GetNewCommandList();
 
-    // Tonemapping ------------------------------------------------------------------------
-    //
+    if (pSwapChain->GetDisplayMode() != DISPLAYMODE_SDR)
     {
+        // FS2 mode! Apply color conversion now.
+        //
         pCmdLst2->RSSetViewports(1, &m_viewport);
         pCmdLst2->RSSetScissorRects(1, &m_rectScissor);
         pCmdLst2->OMSetRenderTargets(1, pSwapChain->GetCurrentBackBufferRTV(), true, NULL);
 
-        m_toneMappingPS.Draw(pCmdLst2, &m_HDRSRV, pState->exposure, pState->toneMapper);
-        m_GPUTimer.GetTimeStamp(pCmdLst2, "Tone mapping");
+        m_colorConversionPS.Draw(pCmdLst2, &m_HDRSRV);
 
         pCmdLst2->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_HDR.GetResource(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET));
     }
-
-    // Render HUD  ------------------------------------------------------------------------
-    //
+    else
     {
-        pCmdLst2->RSSetViewports(1, &m_viewport);
-        pCmdLst2->RSSetScissorRects(1, &m_rectScissor);
-        pCmdLst2->OMSetRenderTargets(1, pSwapChain->GetCurrentBackBufferRTV(), true, NULL);
+        // non FS2 mode, that is SDR, here we apply the tonemapping from the HDR into the swapchain and then we render the GUI
+        //
 
-        m_ImGUI.Draw(pCmdLst2);
+        // Tonemapping ------------------------------------------------------------------------
+        //
+        {
+            pCmdLst2->RSSetViewports(1, &m_viewport);
+            pCmdLst2->RSSetScissorRects(1, &m_rectScissor);
+            pCmdLst2->OMSetRenderTargets(1, pSwapChain->GetCurrentBackBufferRTV(), true, NULL);
 
-        m_GPUTimer.GetTimeStamp(pCmdLst2, "ImGUI Rendering");
+            m_toneMappingPS.Draw(pCmdLst2, &m_HDRSRV, pState->exposure, pState->toneMapper);
+            m_GPUTimer.GetTimeStamp(pCmdLst2, "Tone mapping");
+
+            pCmdLst2->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_HDR.GetResource(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET));
+        }
+
+        // Render HUD  ------------------------------------------------------------------------
+        //
+        {
+            pCmdLst2->RSSetViewports(1, &m_viewport);
+            pCmdLst2->RSSetScissorRects(1, &m_rectScissor);
+            pCmdLst2->OMSetRenderTargets(1, pSwapChain->GetCurrentBackBufferRTV(), true, NULL);
+
+            m_ImGUI.Draw(pCmdLst2);
+
+            m_GPUTimer.GetTimeStamp(pCmdLst2, "ImGUI Rendering");
+        }
     }
 
     // Transition swapchain into present mode

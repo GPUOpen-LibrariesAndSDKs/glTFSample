@@ -78,39 +78,41 @@ private:
     D3D12_VIEWPORT                  m_viewport;
     D3D12_RECT                      m_rectScissor;
     
-	// Initialize helper classes
-	ResourceViewHeaps               m_resourceViewHeaps;
-	UploadHeap                      m_UploadHeap;
-	DynamicBufferRing               m_ConstantBufferRing;
-	StaticBufferPool                m_VidMemBufferPool;
-	CommandListRing                 m_CommandListRing;
-	GPUTimestamps                   m_GPUTimer;
+    // Initialize helper classes
+    ResourceViewHeaps               m_resourceViewHeaps;
+    UploadHeap                      m_UploadHeap;
+    DynamicBufferRing               m_ConstantBufferRing;
+    StaticBufferPool                m_VidMemBufferPool;
+    CommandListRing                 m_CommandListRing;
+    GPUTimestamps                   m_GPUTimer;
 
 
-	//gltf passes
-	GLTFTexturesAndBuffers         *m_pGLTFTexturesAndBuffers;
-	GltfPbrPass                    *m_gltfPBR;
-	GltfDepthPass                  *m_gltfDepth;
-	GltfBBoxPass                   *m_gltfBBox;
+    //gltf passes
+    GLTFTexturesAndBuffers         *m_pGLTFTexturesAndBuffers;
+    GltfPbrPass                    *m_gltfPBR;
+    GltfDepthPass                  *m_gltfDepth;
+    GltfBBoxPass                   *m_gltfBBox;
 
-	// effects
+    // effects
     Bloom                           m_bloom;
     SkyDome                         m_skyDome;
     DownSamplePS                    m_downSample;
     SkyDomeProc                     m_skyDomeProc;
-	ToneMapping                     m_toneMappingPS;
+    ToneMapping                     m_toneMappingPS;
+    ToneMappingCS                   m_toneMappingCS;
+    ColorConversionPS               m_colorConversionPS;
 
-	// GUI
-	ImGUI                           m_ImGUI;
+    // GUI
+    ImGUI                           m_ImGUI;
 
-	// Temporary render targets
+    // Temporary render targets
 
-	// depth buffer
-	Texture                         m_depthBuffer;
+    // depth buffer
+    Texture                         m_depthBuffer;
     DSV                             m_depthBufferDSV;
 
     // shadowmaps
-	Texture                         m_shadowMap;
+    Texture                         m_shadowMap;
     CBV_SRV_UAV                     m_ShadowMapSRV;
     DSV                             m_ShadowMapDSV;
 
@@ -124,10 +126,10 @@ private:
     CBV_SRV_UAV                     m_HDRUAV;
     RTV                             m_HDRRTV;
 
-	// widgets
+    // widgets
     Wireframe                       m_wireframe;
-	WireframeBox                    m_wireframeBox;
+    WireframeBox                    m_wireframeBox;
 
-	std::vector<TimeStamp>          m_TimeStamps;
+    std::vector<TimeStamp>          m_TimeStamps;
 };
 

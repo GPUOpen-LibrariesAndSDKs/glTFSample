@@ -59,7 +59,7 @@ void GLTFSample::OnCreate(HWND hWnd)
     //
 
     uint32_t dwNumberOfBackBuffers = 2;
-    m_swapChain.OnCreate(&m_device, dwNumberOfBackBuffers, hWnd, DISPLAYMODE_SDR);
+    m_swapChain.OnCreate(&m_device, dwNumberOfBackBuffers, hWnd);
 
     // Create a instance of the renderer and initialize it, we need to do that for each GPU
     //
@@ -331,6 +331,54 @@ void GLTFSample::OnRender()
 
         const char * tonemappers[] = { "Timothy", "DX11DSK", "Reinhard", "Uncharted2Tonemap", "ACES", "No tonemapper" };
         ImGui::Combo("tone mapper", &m_state.toneMapper, tonemappers, _countof(tonemappers));
+
+        // FreeSync2 display mode selector
+        // 
+        if (ImGui::Button("FreeSync2"))
+        {
+            ImGui::OpenPopup("FreeSync2");
+            m_swapChain.EnumerateDisplayModes(&m_displayModesAvailable, &m_displayModesNamesAvailable);
+        }
+
+        if (ImGui::BeginPopupModal("FreeSync2", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+        {
+            if (m_displayModesAvailable.size() == 1)
+            {
+                ImGui::Text("\nOpps! This window is not on a FreeSync2 monitor so the only available mode is SDR.\n\n");
+                ImGui::Text("If you have a FreeSync2 monitor move this window to that monitor and try again\n\n");
+                if (ImGui::Button("Cancel", ImVec2(120, 0))) { ImGui::CloseCurrentPopup(); }
+                ImGui::EndPopup();
+            }
+            else
+            {
+                if (m_swapChain.IsFullScreen() == false)
+                {
+                    ImGui::Text("\nFreeSync2 modes are only available in in fullscreen mode, please press ALT + ENTER for fun!\n\n");
+                    if (ImGui::Button("Cancel", ImVec2(120, 0))) { ImGui::CloseCurrentPopup(); }
+                    ImGui::EndPopup();
+                }
+                else
+                {
+                    ImGui::Text("\nChoose video mode\n\n");
+
+                    for (int i = 0; i < m_displayModesAvailable.size(); i++)
+                    {
+                        ImGui::RadioButton(m_displayModesNamesAvailable[i], (int*)&m_currentDisplayMode, m_displayModesAvailable[i]);
+                    }
+                    ImGui::Separator();
+
+                    if (ImGui::Button("OK", ImVec2(120, 0)))
+                    {
+                        OnResize(m_Width, m_Height);
+                        ImGui::CloseCurrentPopup();
+                    }
+                    ImGui::SameLine();
+                    if (ImGui::Button("Cancel", ImVec2(120, 0))) { ImGui::CloseCurrentPopup(); }
+                    ImGui::SetItemDefaultFocus();
+                    ImGui::EndPopup();
+                }
+            }
+        }
 
         const char * skyDomeType[] = { "Procedural Sky", "cubemap", "Simple clear" };
         ImGui::Combo("SkyDome", &m_state.skyDomeType, skyDomeType, _countof(skyDomeType));

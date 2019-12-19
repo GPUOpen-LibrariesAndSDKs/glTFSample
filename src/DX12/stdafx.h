@@ -49,6 +49,8 @@ using namespace DirectX;
 #include "PostProc/BlurPS.h"
 #include "PostProc/SkyDome.h"
 #include "PostProc/ToneMapping.h"
+#include "PostProc/ToneMappingCS.h"
+#include "PostProc/ColorConversionPS.h"
 #include "PostProc/SkyDomeProc.h"
 #include "PostProc/DownSamplePS.h"
 

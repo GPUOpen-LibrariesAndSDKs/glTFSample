@@ -99,6 +99,8 @@ private:
     DownSamplePS                    m_downSample;
     SkyDomeProc                     m_skyDomeProc;
     ToneMapping                     m_toneMappingPS;
+    ToneMappingCS                   m_toneMappingCS;
+    ColorConversionPS               m_colorConversionPS;
 
     // GUI
     ImGUI			                m_ImGUI;

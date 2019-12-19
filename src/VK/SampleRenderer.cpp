@@ -234,7 +234,9 @@ void SampleRenderer::OnCreate(Device *pDevice, SwapChain *pSwapChain)
     m_bloom.OnCreate(pDevice, &m_resourceViewHeaps, &m_ConstantBufferRing, &m_VidMemBufferPool, VK_FORMAT_R16G16B16A16_SFLOAT);
 
     // Create tonemapping pass
+    m_toneMappingCS.OnCreate(pDevice, &m_resourceViewHeaps, &m_ConstantBufferRing);
     m_toneMappingPS.OnCreate(m_pDevice, pSwapChain->GetRenderPass(), &m_resourceViewHeaps, &m_VidMemBufferPool, &m_ConstantBufferRing);
+    m_colorConversionPS.OnCreate(pDevice, pSwapChain->GetRenderPass(), &m_resourceViewHeaps, &m_VidMemBufferPool, &m_ConstantBufferRing);
 
     // Initialize UI rendering resources
     m_ImGUI.OnCreate(m_pDevice, pSwapChain->GetRenderPass(), &m_UploadHeap, &m_ConstantBufferRing);
@@ -253,7 +255,9 @@ void SampleRenderer::OnCreate(Device *pDevice, SwapChain *pSwapChain)
 //--------------------------------------------------------------------------------------
 void SampleRenderer::OnDestroy()
 {   
+    m_colorConversionPS.OnDestroy();
     m_toneMappingPS.OnDestroy();
+    m_toneMappingCS.OnDestroy();
     m_ImGUI.OnDestroy();
     m_bloom.OnDestroy();
     m_downSample.OnDestroy();
@@ -368,9 +372,10 @@ void SampleRenderer::OnCreateWindowSizeDependentResources(SwapChain *pSwapChain,
     
     // update the pipelines if the swapchain render pass has changed (for example when the format of the swapchain changes)
     //
+    m_colorConversionPS.UpdatePipelines(pSwapChain->GetRenderPass(), pSwapChain->GetDisplayMode());
     m_toneMappingPS.UpdatePipelines(pSwapChain->GetRenderPass());
 
-    m_ImGUI.UpdatePipeline(pSwapChain->GetRenderPass());
+    m_ImGUI.UpdatePipeline((pSwapChain->GetDisplayMode() == DISPLAYMODE_SDR) ? pSwapChain->GetRenderPass() : m_render_pass_HDR);
 }
 
 //--------------------------------------------------------------------------------------
@@ -866,6 +871,83 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
         SetPerfMarkerEnd(cmdBuf1);
     }
 
+    // If using FreeSync2 we need to to the tonemapping in-place and then apply the GUI, later we'll apply the color conversion into the swapchain
+    //
+    if (pSwapChain->GetDisplayMode() != DISPLAYMODE_SDR)
+    {
+        // In place Tonemapping ------------------------------------------------------------------------
+        //
+        {
+            {
+                VkImageMemoryBarrier barrier = {};
+                barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+                barrier.pNext = NULL;
+                barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                barrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+                barrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL; // we need to read from it for the post-processing
+                barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                barrier.subresourceRange.baseMipLevel = 0;
+                barrier.subresourceRange.levelCount = 1;
+                barrier.subresourceRange.baseArrayLayer = 0;
+                barrier.subresourceRange.layerCount = 1;
+                barrier.image = m_HDR.Resource();
+                vkCmdPipelineBarrier(cmdBuf1, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, NULL, 0, NULL, 1, &barrier);
+            }
+
+            m_toneMappingCS.Draw(cmdBuf1, m_HDRUAV, pState->exposure, pState->toneMapper, m_Width, m_Height);
+
+            {
+                VkImageMemoryBarrier barrier = {};
+                barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+                barrier.pNext = NULL;
+                barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+                barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+                barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; // we need to read from it for the post-processing
+                barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                barrier.subresourceRange.baseMipLevel = 0;
+                barrier.subresourceRange.levelCount = 1;
+                barrier.subresourceRange.baseArrayLayer = 0;
+                barrier.subresourceRange.layerCount = 1;
+                barrier.image = m_HDR.Resource();
+                vkCmdPipelineBarrier(cmdBuf1, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, NULL, 0, NULL, 1, &barrier);
+            }
+        }
+
+        // Render HUD  ------------------------------------------------------------------------
+        //
+        {
+            // prepare render pass
+            {
+                VkRenderPassBeginInfo rp_begin = {};
+                rp_begin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+                rp_begin.pNext = NULL;
+                rp_begin.renderPass = m_render_pass_HDR;
+                rp_begin.framebuffer = m_pFrameBuffer_HDR;
+                rp_begin.renderArea.offset.x = 0;
+                rp_begin.renderArea.offset.y = 0;
+                rp_begin.renderArea.extent.width = m_Width;
+                rp_begin.renderArea.extent.height = m_Height;
+                rp_begin.clearValueCount = 0;
+                rp_begin.pClearValues = NULL;
+                vkCmdBeginRenderPass(cmdBuf1, &rp_begin, VK_SUBPASS_CONTENTS_INLINE);
+            }
+
+            vkCmdSetScissor(cmdBuf1, 0, 1, &m_rectScissor);
+            vkCmdSetViewport(cmdBuf1, 0, 1, &m_viewport);
+
+            m_ImGUI.Draw(cmdBuf1);
+
+            vkCmdEndRenderPass(cmdBuf1);
+
+            m_GPUTimer.GetTimeStamp(cmdBuf1, "ImGUI Rendering");
+        }
+    }
 
     // submit command buffer
     {
@@ -924,21 +1006,29 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
     vkCmdSetScissor(cmdBuf2, 0, 1, &m_rectScissor);
     vkCmdSetViewport(cmdBuf2, 0, 1, &m_viewport);
 
-    // non FS2 mode, that is SDR, here we apply the tonemapping from the HDR into the swapchain and then we render the GUI
-    //
-
-    // Tonemapping ------------------------------------------------------------------------
-    //
+    if (pSwapChain->GetDisplayMode() != DISPLAYMODE_SDR)
     {
-        m_toneMappingPS.Draw(cmdBuf2, m_HDRSRV, pState->exposure, pState->toneMapper);
-        m_GPUTimer.GetTimeStamp(cmdBuf2, "Tone mapping");
+        m_colorConversionPS.Draw(cmdBuf2, m_HDRSRV, pState->exposure, pState->toneMapper);
+        m_GPUTimer.GetTimeStamp(cmdBuf2, "Color conversion");
     }
-
-    // Render HUD  ------------------------------------------------------------------------
-    //
+    else
     {
-        m_ImGUI.Draw(cmdBuf2);
-        m_GPUTimer.GetTimeStamp(cmdBuf2, "ImGUI Rendering");
+        // non FS2 mode, that is SDR, here we apply the tonemapping from the HDR into the swapchain and then we render the GUI
+        //
+
+        // Tonemapping ------------------------------------------------------------------------
+        //
+        {
+            m_toneMappingPS.Draw(cmdBuf2, m_HDRSRV, pState->exposure, pState->toneMapper);
+            m_GPUTimer.GetTimeStamp(cmdBuf2, "Tone mapping");
+        }
+
+        // Render HUD  ------------------------------------------------------------------------
+        //
+        {
+            m_ImGUI.Draw(cmdBuf2);
+            m_GPUTimer.GetTimeStamp(cmdBuf2, "ImGUI Rendering");
+        }
     }
 
     SetPerfMarkerEnd(cmdBuf2);
