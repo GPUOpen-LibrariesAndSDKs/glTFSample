@@ -12,8 +12,8 @@
 // C RunTime Header Files
 #include <malloc.h>
 #include <map>
-#include <mutex>
 #include <vector>
+#include <mutex>
 #include <fstream>
 
 #include "vulkan/vulkan.h"
@@ -25,18 +25,23 @@ using namespace DirectX;
 // TODO: reference additional headers your program requires here
 #include "Base/Imgui.h"
 #include "Base/ImguiHelper.h"
-#include "Base/Helper.h"
 #include "Base/Device.h"
+#include "Base/Helper.h"
 #include "Base/Texture.h"
+#include "Base/FreeSync2.h"
 #include "Base/SwapChain.h"
 #include "Base/UploadHeap.h"
-#include "Base/GPUTimestamps.h"
+#include "Base/GPUTimeStamps.h"
 #include "Base/ExtDebugMarkers.h"
 #include "Base/CommandListRing.h"
 #include "Base/StaticBufferPool.h"
 #include "Base/DynamicBufferRing.h"
 #include "Base/ResourceViewHeaps.h"
 #include "Base/ShaderCompilerHelper.h"
+
+#include "GLTF/GltfPbrPass.h"
+#include "GLTF/GltfBBoxPass.h"
+#include "GLTF/GltfDepthPass.h"
 
 #include "Misc/Misc.h"
 #include "Misc/Camera.h"
@@ -51,14 +56,12 @@ using namespace DirectX;
 #include "PostProc/SkyDomeProc.h"
 #include "PostProc/DownSamplePS.h"
 
-#include "GLTF/GltfPbrPass.h"
-#include "GLTF/GltfBBoxPass.h"
-#include "GLTF/GltfDepthPass.h"
 
 #include "Widgets/Axis.h"
 #include "Widgets/CheckerBoardFloor.h"
 #include "Widgets/WireframeBox.h"
 #include "Widgets/WireframeSphere.h"
+
 
 
 using namespace CAULDRON_VK;

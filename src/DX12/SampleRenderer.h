@@ -18,10 +18,11 @@
 // THE SOFTWARE.
 #pragma once
 
-// We are queuing (2 backbuffers + 0.5) frames, so we need to triple buffer the command lists
+// We are queuing (backBufferCount + 0.5) frames, so we need to triple buffer the resources that get modified each frame
 static const int backBufferCount = 3;
 
 #define USE_VID_MEM true
+#define USE_SHADOWMASK false
 
 using namespace CAULDRON_DX12;
 
@@ -42,17 +43,19 @@ public:
     {
         float time;
         Camera camera;
-        
+
         float exposure;
         float iblFactor;
         float emmisiveFactor;
-        
+
         int   toneMapper;
         int   skyDomeType;
         bool  bDrawBoundingBoxes;
 
-        uint32_t  spotlightCount;
-        Spotlight spotlight[4];
+        bool  m_useTAA;
+
+        bool  m_isBenchmarking;
+
         bool  bDrawLightFrustum;
     };
 
@@ -65,6 +68,9 @@ public:
     int LoadScene(GLTFCommon *pGLTFCommon, int stage = 0);
     void UnloadScene();
 
+    bool GetHasTAA() const { return m_HasTAA; }
+    void SetHasTAA(bool hasTAA) { m_HasTAA = hasTAA; }
+
     const std::vector<TimeStamp> &GetTimingValues() { return m_TimeStamps; }
 
     void OnRender(State *pState, SwapChain *pSwapChain);
@@ -74,10 +80,10 @@ private:
 
     uint32_t                        m_Width;
     uint32_t                        m_Height;
-
     D3D12_VIEWPORT                  m_viewport;
     D3D12_RECT                      m_rectScissor;
-    
+    bool                            m_HasTAA = false;
+
     // Initialize helper classes
     ResourceViewHeaps               m_resourceViewHeaps;
     UploadHeap                      m_UploadHeap;
@@ -86,12 +92,12 @@ private:
     CommandListRing                 m_CommandListRing;
     GPUTimestamps                   m_GPUTimer;
 
-
     //gltf passes
-    GLTFTexturesAndBuffers         *m_pGLTFTexturesAndBuffers;
     GltfPbrPass                    *m_gltfPBR;
-    GltfDepthPass                  *m_gltfDepth;
     GltfBBoxPass                   *m_gltfBBox;
+    GltfDepthPass                  *m_gltfDepth;
+    GltfMotionVectorsPass          *m_gltfMotionVectors;
+    GLTFTexturesAndBuffers         *m_pGLTFTexturesAndBuffers;
 
     // effects
     Bloom                           m_bloom;
@@ -101,6 +107,8 @@ private:
     ToneMapping                     m_toneMappingPS;
     ToneMappingCS                   m_toneMappingCS;
     ColorConversionPS               m_colorConversionPS;
+    Sharpen                         m_sharpen;
+    TAA                             m_taa;
 
     // GUI
     ImGUI                           m_ImGUI;
@@ -111,10 +119,40 @@ private:
     Texture                         m_depthBuffer;
     DSV                             m_depthBufferDSV;
 
+    // Motion Vectors resources
+    Texture                         m_MotionVectorsDepthMap;
+    DSV                             m_MotionVectorsDepthMapDSV;
+    CBV_SRV_UAV                     m_MotionVectorsDepthMapSRV;
+    Texture                         m_MotionVectors;
+    RTV                             m_MotionVectorsRTV;
+    CBV_SRV_UAV                     m_MotionVectorsSRV;
+    CBV_SRV_UAV                     m_MotionVectorsInputsSRV;
+
+    // TAA buffer
+    Texture                         m_TAABuffer;
+    CBV_SRV_UAV                     m_TAABufferSRV;
+    CBV_SRV_UAV                     m_TAABufferUAV;
+    CBV_SRV_UAV                     m_TAAInputsSRV;
+    Texture                         m_HistoryBuffer;
+    RTV                             m_HistoryBufferRTV;
+
+    // Normal buffer
+    Texture                         m_NormalBuffer;
+    RTV                             m_NormalBufferRTV;
+    CBV_SRV_UAV                     m_NormalBufferSRV;
+
+#if USE_SHADOWMASK
+    // shadow mask
+    Texture                         m_ShadowMask;
+    CBV_SRV_UAV                     m_ShadowMaskUAV;
+    CBV_SRV_UAV                     m_ShadowMaskSRV;
+    ShadowResolvePass               m_shadowResolve;
+#endif
+
     // shadowmaps
     Texture                         m_shadowMap;
-    CBV_SRV_UAV                     m_ShadowMapSRV;
     DSV                             m_ShadowMapDSV;
+    CBV_SRV_UAV                     m_ShadowMapSRV;
 
     // MSAA RT
     Texture                         m_HDRMSAA;
@@ -132,4 +170,3 @@ private:
 
     std::vector<TimeStamp>          m_TimeStamps;
 };
-

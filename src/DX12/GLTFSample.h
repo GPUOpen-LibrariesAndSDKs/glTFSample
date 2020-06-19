@@ -1,6 +1,6 @@
 // AMD SampleDX12 sample code
 // 
-// Copyright(c) 2018 Advanced Micro Devices, Inc.All rights reserved.
+// Copyright(c) 2017 Advanced Micro Devices, Inc.All rights reserved.
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files(the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
@@ -39,11 +39,15 @@ class GLTFSample : public FrameworkWindows
 {
 public:
     GLTFSample(LPCSTR name);
+    void OnParseCommandLine(LPSTR lpCmdLine, uint32_t* pWidth, uint32_t* pHeight, bool *pbFullScreen);
     void OnCreate(HWND hWnd);
     void OnDestroy();
+    void BuildUI();
+    void LoadScene(int sceneIndex);
     void OnRender();
     bool OnEvent(MSG msg);
-    void OnResize(uint32_t Width, uint32_t Height);
+    void OnResize(uint32_t Width, uint32_t Height) { OnResize(Width, Height, DISPLAYMODE_SDR); }
+    void OnResize(uint32_t Width, uint32_t Height, DisplayModes displayMode);
     void SetFullScreen(bool fullscreen);
     
 private:
@@ -55,6 +59,7 @@ private:
     std::vector<const char *> m_displayModesNamesAvailable;
 
     GLTFCommon           *m_pGltfLoader = NULL;
+    bool                  m_loadingScene = false;
 
     SampleRenderer       *m_Node = NULL;
     SampleRenderer::State m_state;
@@ -64,8 +69,16 @@ private:
     float                 m_pitch;
 
     float                 m_time;             // WallClock in seconds.
-    double                m_deltaTime;        // The elapsed time in milliseconds since the previous frame.
     double                m_lastFrameTime;
 
-    bool                  m_bPlay;
+    // json config file
+    json                        m_jsonConfigFile;
+    std::vector<std::string>    m_sceneNames;
+    int                         m_activeScene;
+    int                         m_activeCamera;
+    bool                        m_stablePowerState;
+    bool                        m_isCpuValidationLayerEnabled;
+    bool                        m_isGpuValidationLayerEnabled;
+
+    bool                        m_bPlay;
 };
