@@ -29,6 +29,7 @@ using namespace DirectX;
 #include "Base/Helper.h"
 #include "Base/Device.h"
 #include "Base/Texture.h"
+#include "Base/FreeSync2.h"
 #include "Base/SwapChain.h"
 #include "Base/UploadHeap.h"
 #include "Base/UserMarkers.h"
@@ -40,24 +41,30 @@ using namespace DirectX;
 #include "Base/ShaderCompilerHelper.h"
 #include "Base/StaticConstantBufferPool.h"
 
+#include "GLTF/GltfPbrPass.h"
+#include "GLTF/GltfBBoxPass.h"
+#include "GLTF/GltfDepthPass.h"
+#include "GLTF/GltfMotionVectorsPass.h"
+
 #include "Misc/Misc.h"
 #include "Misc/Error.h"
 #include "Misc/Camera.h"
 #include "Misc/FrameworkWindows.h"
 
+#include "PostProc/TAA.h"
 #include "PostProc/Bloom.h"
 #include "PostProc/BlurPS.h"
+#include "PostProc/Sharpen.h"
 #include "PostProc/SkyDome.h"
+#include "PostProc/SkyDomeProc.h"
+#include "PostProc/PostProcCS.h"
 #include "PostProc/ToneMapping.h"
 #include "PostProc/ToneMappingCS.h"
 #include "PostProc/ColorConversionPS.h"
-#include "PostProc/SkyDomeProc.h"
 #include "PostProc/DownSamplePS.h"
-
-#include "GLTF/GltfPbrPass.h"
-#include "GLTF/GltfBBoxPass.h"
-#include "GLTF/GltfDepthPass.h"
-
+#include "PostProc/ShadowResolvePass.h"
 
 #include "Widgets/wireframe.h"
+
+
 using namespace CAULDRON_DX12;

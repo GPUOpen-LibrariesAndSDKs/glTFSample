@@ -1,4 +1,4 @@
-// AMD SampleDX12 sample code
+// AMD SampleVK sample code
 // 
 // Copyright(c) 2018 Advanced Micro Devices, Inc.All rights reserved.
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -18,7 +18,7 @@
 // THE SOFTWARE.
 #pragma once
 
-// We are queuing (2 backbuffers + 0.5) frames, so we need to triple buffer the command lists
+// We are queuing (backBufferCount + 0.5) frames, so we need to triple buffer the resources that get modified each frame
 static const int backBufferCount = 3;
 
 #define USE_VID_MEM true
@@ -52,8 +52,11 @@ public:
         int   skyDomeType;
         bool  bDrawBoundingBoxes;
 
-        uint32_t  spotlightCount;
-        Spotlight spotlight[4];
+        bool  m_useTAA;
+
+        bool  m_isBenchmarking;
+        bool  m_isValidationLayerEnabled;
+
         bool  bDrawLightFrustum;
     };
 
@@ -73,25 +76,26 @@ public:
 private:
     Device *m_pDevice;
 
-    uint32_t m_Width;
-    uint32_t m_Height;
+    uint32_t                        m_Width;
+    uint32_t                        m_Height;
 
-    VkViewport                      m_viewport;
     VkRect2D                        m_rectScissor;
+    VkViewport                      m_viewport;
 
     // Initialize helper classes
     ResourceViewHeaps               m_resourceViewHeaps;
     UploadHeap                      m_UploadHeap;
     DynamicBufferRing               m_ConstantBufferRing;
     StaticBufferPool                m_VidMemBufferPool;
+    StaticBufferPool                m_SysMemBufferPool;
     CommandListRing                 m_CommandListRing;
     GPUTimestamps                   m_GPUTimer;
 
     //gltf passes
-    GLTFTexturesAndBuffers         *m_pGLTFTexturesAndBuffers;
     GltfPbrPass                    *m_gltfPBR;
-    GltfDepthPass                  *m_gltfDepth;
     GltfBBoxPass                   *m_gltfBBox;
+    GltfDepthPass                  *m_gltfDepth;
+    GLTFTexturesAndBuffers         *m_pGLTFTexturesAndBuffers;
 
     // effects
     Bloom                           m_bloom;
@@ -103,7 +107,7 @@ private:
     ColorConversionPS               m_colorConversionPS;
 
     // GUI
-    ImGUI			                m_ImGUI;
+    ImGUI                           m_ImGUI;
 
     // Temporary render targets
 
@@ -118,7 +122,7 @@ private:
 
     // MSAA RT
     Texture                         m_HDRMSAA;
-    VkImageView                     m_HDRMSAASRV;
+    VkImageView                     m_HDRMSAARTV;
 
     // Resolved RT
     Texture                         m_HDR;
@@ -126,15 +130,16 @@ private:
     VkImageView                     m_HDRUAV;
 
     // widgets
+    Wireframe                       m_wireframe;
     WireframeBox                    m_wireframeBox;
 
-    VkRenderPass m_render_pass_shadow;
-    VkRenderPass m_render_pass_HDR_MSAA;
-    VkRenderPass m_render_pass_HDR;
+    VkRenderPass                    m_render_pass_shadow;
+    VkRenderPass                    m_render_pass_HDR_MSAA;
+    VkRenderPass                    m_render_pass_PBR_HDR;
 
-    VkFramebuffer m_pShadowMapBuffers;
-    VkFramebuffer m_pFrameBuffer_HDR_MSAA;
-    VkFramebuffer m_pFrameBuffer_HDR;
+    VkFramebuffer                   m_pFrameBuffer_shadow;
+    VkFramebuffer                   m_pFrameBuffer_HDR_MSAA;
+    VkFramebuffer                   m_pFrameBuffer_PBR_HDR;
 
     std::vector<TimeStamp>          m_TimeStamps;
 };

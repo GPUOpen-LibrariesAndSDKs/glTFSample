@@ -1,4 +1,7 @@
 [submodule "libs/cauldron"]
 	path = libs/cauldron
-	url = https://github.com/GPUOpen-LibrariesAndSDKs/Cauldron.git
-	branch = master
+	url = ../../GPUOpen-LibrariesAndSDKs/Cauldron.git
+[submodule "media/Cauldron-Media"]
+	path = media/Cauldron-Media
+	url = ../../GPUOpen-LibrariesAndSDKs/Cauldron-Media
+

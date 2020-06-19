@@ -1,0 +1,128 @@
+{
+  "globals": {
+    "CpuValidationLayerEnabled": false,
+    "GpuValidationLayerEnabled": false,
+    "fullScreen": false,
+    "width": 1920,
+    "height": 1080,
+    "activeScene": 0,
+    "benchmark": false,
+    "stablePowerState": false
+  },
+  "scenes": [
+    {
+      "name": "Sponza",
+      "directory": "..\\media\\cauldron-media\\sponza\\GLTF\\",
+      "filename": "sponza.gltf",
+      "TAA": false,
+      "toneMapper": 0,
+      "iblFactor": 0.36,
+      "emmisiveFactor": 1,
+      "intensity": 10,
+      "exposure": 1,
+      "activeCamera": -1,
+      "camera": {
+        "defaultFrom": [ 5.13694048, 1.89175785, -1.40289795 ],
+        "defaultTo": [ 0.703276634, 1.02280307, 0.218072295 ]
+      },
+      "BenchmarkSettings": {
+        "timeStep": 1,
+        "timeStart": 0,
+        "timeEnd": 10000,
+        "exitWhenTimeEnds": true,
+        "resultsFilename": "Sponza.csv",
+        "warmUpFrames": 200,
+        "sequence": {
+          "timeStart": 0,
+          "timeEnd": 2000,
+          "keyFrames": [
+            {
+              "time": 0,
+              "from": [ 5.13694048, 1.89175785, -1.40289795 ],
+              "to": [ 0.703276634, 1.02280307, 0.218072295 ]
+            },
+            {
+              "time": 1000,
+              "from": [ -5.13694048, 1.89175785, -1.40289795 ],
+              "to": [ 0.703276634, 1.02280307, 0.218072295 ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "BusterDrone",
+      "directory": "..\\media\\cauldron-media\\buster_drone\\",
+      "filename": "busterDrone.gltf",
+      "TAA": true,
+      "toneMapper": 0,
+      "iblFactor": 1,
+      "emmisiveFactor": 30,
+      "intensity": 50,
+      "exposure": 1,
+      "camera": {
+        "defaultFrom": [ 0, 0, 3.5 ],
+        "defaultTo": [ 0, 0, 0 ]
+      }
+    },
+    {
+      "name": "BoomBox",
+      "directory": "..\\media\\cauldron-media\\BoomBox\\GLTF\\",
+      "filename": "BoomBox.gltf",
+      "TAA": true,
+      "toneMapper": 0,
+      "iblFactor": 1,
+      "emmisiveFactor": 1,
+      "intensity": 50,
+      "exposure": 1,
+      "camera": {
+        "defaultFrom": [ 0, 0, 3.5 ],
+        "defaultTo": [ 0, 0, 0 ]
+      }
+    },
+    {
+      "name": "SciFiHelmet",
+      "directory": "..\\media\\cauldron-media\\SciFiHelmet\\GLTF\\",
+      "filename": "SciFiHelmet.gltf",
+      "TAA": true,
+      "toneMapper": 0,
+      "iblFactor": 1,
+      "emmisiveFactor": 1,
+      "intensity": 50,
+      "exposure": 1,
+      "camera": {
+        "defaultFrom": [ 0, 0, 3.5 ],
+        "defaultTo": [ 0, 0, 0 ]
+      }
+    },
+    {
+      "name": "DamagedHelmet",
+      "directory": "..\\media\\cauldron-media\\DamagedHelmet\\GLTF\\",
+      "filename": "DamagedHelmet.gltf",
+      "TAA": true,
+      "toneMapper": 0,
+      "iblFactor": 2,
+      "emmisiveFactor": 1,
+      "intensity": 50,
+      "exposure": 1,
+      "camera": {
+        "defaultFrom": [ 0, 0, 3.5 ],
+        "defaultTo": [ 0, 0, 0 ]
+      }
+    },
+    {
+      "name": "MetalRoughSpheres",
+      "directory": "..\\media\\cauldron-media\\MetalRoughSpheres\\GLTF\\",
+      "filename": "MetalRoughSpheres.gltf",
+      "TAA": true,
+      "iblFactor": 1,
+      "emmisiveFactor": 1,
+      "intensity": 50,
+      "exposure": 1,
+      "camera": {
+        "defaultFrom": [ 0, 0, 20 ],
+        "defaultTo": [ 0, 0, 0 ]
+      }
+    }
+  ]
+}

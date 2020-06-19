@@ -1,0 +1,59 @@
+variables:
+  SampleName: GLTFSample
+  CMakeConfig: -G "Visual Studio 15 2017" -A x64
+  CaudronMediaUrl: http://isvgit.amd.com/raguaviv/cauldron-media/-/archive/master/cauldron-media-master.zip
+  GIT_SUBMODULE_STRATEGY: normal
+
+stages:
+  - build
+  - deploy
+
+build_dx12:
+  tags:
+  - windows
+  - amd64
+  stage: build
+  artifacts:
+    paths:
+    - bin/
+  script:
+  - 'cmake -S . -B build/DX12 -DGFX_API=DX12 %CMakeConfig%'
+  - 'cmake --build build/DX12 --config Release'
+
+build_vk:
+  tags:
+  - windows
+  - amd64
+  stage: build
+  artifacts:
+    paths:
+    - bin/
+  script:
+  - 'cmake -S . -B build/Vk -DGFX_API=VK %CMakeConfig%'
+  - 'cmake --build build/Vk --config Release'
+
+package_sample:
+  tags:
+  - windows
+  - amd64
+  stage: deploy
+  dependencies:
+    - build_dx12
+    - build_vk
+  script:
+  - copy %VULKAN_SDK%\Bin\glslc.exe bin
+  - move NOTICES.txt %SampleName%
+  - echo cd .\bin\ > %SampleName%_VK.bat
+  - echo start %SampleName%_VK.exe >> %SampleName%_VK.bat
+  - echo cd .\bin\ > %SampleName%_DX12.bat
+  - echo start %SampleName%_DX12.exe >> %SampleName%_DX12.bat
+  artifacts:
+      name: "%SampleName%-%CI_COMMIT_TAG%-%CI_COMMIT_REF_NAME%-%CI_COMMIT_SHORT_SHA%"
+      paths:
+      - "bin/"
+      - "NOTICES.txt"
+      - "media/cauldron-media/"
+      - "%SampleName%_VK.bat"
+      - "%SampleName%_DX12.bat"
+      - "readme.md"
+      - "screenshot.png"
