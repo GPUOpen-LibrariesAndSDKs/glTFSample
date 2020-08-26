@@ -142,5 +142,7 @@ private:
     VkFramebuffer                   m_pFrameBuffer_PBR_HDR;
 
     std::vector<TimeStamp>          m_TimeStamps;
+
+    AsyncPool                       m_asyncPool;
 };
 

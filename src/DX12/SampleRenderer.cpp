@@ -20,6 +20,8 @@
 #include "stdafx.h"
 
 #include "SampleRenderer.h"
+#include "base\\SaveTexture.h"
+
 
 //--------------------------------------------------------------------------------------
 //
@@ -33,7 +35,7 @@ void SampleRenderer::OnCreate(Device* pDevice, SwapChain *pSwapChain)
     // Initialize helpers
 
     // Create all the heaps for the resources views
-    const uint32_t cbvDescriptorCount = 2000;
+    const uint32_t cbvDescriptorCount = 4000;
     const uint32_t srvDescriptorCount = 8000;
     const uint32_t uavDescriptorCount = 10;
     const uint32_t dsvDescriptorCount = 10;
@@ -46,7 +48,7 @@ void SampleRenderer::OnCreate(Device* pDevice, SwapChain *pSwapChain)
     m_CommandListRing.OnCreate(pDevice, backBufferCount, commandListsPerBackBuffer, pDevice->GetGraphicsQueue()->GetDesc());
 
     // Create a 'dynamic' constant buffer
-    const uint32_t constantBuffersMemSize = 20 * 1024 * 1024;
+    const uint32_t constantBuffersMemSize = 200 * 1024 * 1024;
     m_ConstantBufferRing.OnCreate(pDevice, backBufferCount, constantBuffersMemSize, &m_resourceViewHeaps);
 
     // Create a 'static' pool for vertices, indices and constant buffers
@@ -294,6 +296,9 @@ int SampleRenderer::LoadScene(GLTFCommon *pGLTFCommon, int stage)
         ImGui::EndPopup();
     }
 
+    // use multithreading
+    AsyncPool *pAsyncPool = &m_asyncPool;
+
     // Loading stages
     //
     if (stage == 0)
@@ -312,7 +317,7 @@ int SampleRenderer::LoadScene(GLTFCommon *pGLTFCommon, int stage)
 
         // here we are loading onto the GPU all the textures and the inverse matrices
         // this data will be used to create the PBR and Depth passes       
-        m_pGLTFTexturesAndBuffers->LoadTextures();
+        m_pGLTFTexturesAndBuffers->LoadTextures(pAsyncPool);
     }
     else if (stage == 7)
     {
@@ -326,7 +331,8 @@ int SampleRenderer::LoadScene(GLTFCommon *pGLTFCommon, int stage)
             &m_resourceViewHeaps,
             &m_ConstantBufferRing,
             &m_VidMemBufferPool,
-            m_pGLTFTexturesAndBuffers
+            m_pGLTFTexturesAndBuffers,
+            pAsyncPool
         );
     }
     else if (stage == 8)
@@ -342,7 +348,8 @@ int SampleRenderer::LoadScene(GLTFCommon *pGLTFCommon, int stage)
             &m_VidMemBufferPool,
             m_pGLTFTexturesAndBuffers,
             m_MotionVectors.GetFormat(),
-            m_NormalBuffer.GetFormat()
+            m_NormalBuffer.GetFormat(),
+            pAsyncPool
         );
     }
     else if (stage == 9)
@@ -359,13 +366,16 @@ int SampleRenderer::LoadScene(GLTFCommon *pGLTFCommon, int stage)
             &m_VidMemBufferPool,
             m_pGLTFTexturesAndBuffers,
             &m_skyDome,
+            false,                  // use a SSAO mask
             USE_SHADOWMASK,
             m_HDRMSAA.GetFormat(), // forward pass channel
             DXGI_FORMAT_UNKNOWN,   // specular-roughness channel
             DXGI_FORMAT_UNKNOWN,   // diffuse channel
             DXGI_FORMAT_UNKNOWN,   // normal channel
-            4
+            4,
+            pAsyncPool
         );
+
     }
     else if (stage == 10)
     {
@@ -466,6 +476,7 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
 
     // Let our resource managers do some house keeping
     //
+    m_CommandListRing.OnBeginFrame();
     m_ConstantBufferRing.OnBeginFrame();
     m_GPUTimer.OnBeginFrame(gpuTicksPerSecond, &m_TimeStamps);
 
@@ -481,13 +492,15 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
     //
     per_frame *pPerFrame = NULL;
     if (m_pGLTFTexturesAndBuffers)
-    {        
+    {
         // fill as much as possible using the GLTF (camera, lights, ...)
         pPerFrame = m_pGLTFTexturesAndBuffers->m_pGLTFCommon->SetPerFrameData(pState->camera);
 
         // Set some lighting factors
         pPerFrame->iblFactor = pState->iblFactor;
         pPerFrame->emmisiveFactor = pState->emmisiveFactor;
+        pPerFrame->invScreenResolution[0] = 1.0f / ((float)m_Width);
+        pPerFrame->invScreenResolution[1] = 1.0f / ((float)m_Height);
 
         // Set shadowmaps bias and an index that indicates the rectangle of the atlas in which depth will be rendered
         uint32_t shadowMapIndex = 0;
@@ -562,6 +575,7 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
             shadowMapIndex++;
         }
     }
+
     pCmdLst1->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_shadowMap.GetResource(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
 
     // Motion vectors ---------------------------------------------------------------------------
@@ -781,7 +795,7 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
         pCmdLst1->ResourceBarrier(ARRAYSIZE(postSharpen), postSharpen);
     }
 
-    // If using FreeSync2 we need to to the tonemapping in-place and then apply the GUI, later we'll apply the color conversion into the swapchain
+    // If using FreeSync HDR we need to to the tonemapping in-place and then apply the GUI, later we'll apply the color conversion into the swapchain
     //
     if (pSwapChain->GetDisplayMode() != DISPLAYMODE_SDR)
     {
@@ -813,8 +827,7 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
         }
     }
 
-    // submit command buffer
-
+    // submit command buffer #1
     ThrowIfFailed(pCmdLst1->Close());
     ID3D12CommandList* CmdListList1[] = { pCmdLst1 };
     m_pDevice->GetGraphicsQueue()->ExecuteCommandLists(1, CmdListList1);
@@ -823,13 +836,11 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
     //
     pSwapChain->WaitForSwapChain();
 
-    m_CommandListRing.OnBeginFrame();
-
     ID3D12GraphicsCommandList* pCmdLst2 = m_CommandListRing.GetNewCommandList();
 
     if (pSwapChain->GetDisplayMode() != DISPLAYMODE_SDR)
     {
-        // FS2 mode! Apply color conversion now.
+        // FS HDR mode! Apply color conversion now.
         //
         pCmdLst2->RSSetViewports(1, &m_viewport);
         pCmdLst2->RSSetScissorRects(1, &m_rectScissor);
@@ -842,7 +853,7 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
     }
     else
     {
-        // non FS2 mode, that is SDR, here we apply the tonemapping from the HDR into the swapchain and then we render the GUI
+        // non FS HDR mode, that is SDR, here we apply the tonemapping from the HDR into the swapchain and then we render the GUI
         //
 
         // Tonemapping ------------------------------------------------------------------------
@@ -871,6 +882,11 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
         }
     }
 
+    if (pState->m_pScreenShotName != NULL)
+    {
+        m_saveTexture.CopyRenderTargetIntoStagingTexture(m_pDevice->GetDevice(), pCmdLst2, pSwapChain->GetCurrentBackBufferResource(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+    }
+
     // Transition swapchain into present mode
 
     pCmdLst2->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(pSwapChain->GetCurrentBackBufferResource(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
@@ -879,12 +895,18 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
 
     m_GPUTimer.CollectTimings(pCmdLst2);
 
-    // Close & Submit the command list ----------------------------------------------------
+    // Close & Submit the command list #2 -------------------------------------------------
     //
     ThrowIfFailed(pCmdLst2->Close());
 
     ID3D12CommandList* CmdListList2[] = { pCmdLst2 };
     m_pDevice->GetGraphicsQueue()->ExecuteCommandLists(1, CmdListList2);
+
+    if (pState->m_pScreenShotName != NULL)
+    {
+        m_saveTexture.SaveStagingTextureAsJpeg(m_pDevice->GetDevice(), m_pDevice->GetGraphicsQueue(), pState->m_pScreenShotName->c_str());
+        pState->m_pScreenShotName = NULL;
+    }
 
     // Update previous camera matrices
     //
