@@ -122,9 +122,11 @@ void GLTFSample::OnCreate(HWND hWnd)
     m_device.CreatePipelineCache();
 
     // set stable power state
-    m_device.GetDevice()->SetStablePowerState(m_stablePowerState);
+    if (m_stablePowerState)
+        m_device.GetDevice()->SetStablePowerState(TRUE);
 
     //init the shader compiler
+    InitDirectXCompiler();
     CreateShaderCache();
 
     // Create Swapchain
@@ -312,7 +314,6 @@ void GLTFSample::LoadScene(int sceneIndex)
         {
             tfNode n;
             n.m_tranform.LookAt(PolarToVector(XM_PI / 2.0f, 0.58f)*3.5f, XMVectorSet(0, 0, 0, 0));
-            int sourceIdx = m_pGltfLoader->AddNode(n);
 
             tfLight l;
             l.m_type = tfLight::LIGHT_SPOTLIGHT;
@@ -321,9 +322,8 @@ void GLTFSample::LoadScene(int sceneIndex)
             l.m_range = 15;
             l.m_outerConeAngle = XM_PI / 4.0f;
             l.m_innerConeAngle = (XM_PI / 4.0f) * 0.9f;
-            l.m_nodeIndex = sourceIdx;
 
-            m_pGltfLoader->AddLight(l);
+            m_pGltfLoader->AddLight(n, l);
         }
         
         // set default camera
@@ -341,7 +341,10 @@ void GLTFSample::LoadScene(int sceneIndex)
         //
         if (m_state.m_isBenchmarking)
         {
-            BenchmarkConfig(scene["BenchmarkSettings"], m_activeCamera, m_pGltfLoader);
+            std::string deviceName;
+            std::string driverVersion;
+            m_device.GetDeviceInfo(&deviceName, &driverVersion);
+            BenchmarkConfig(scene["BenchmarkSettings"], m_activeCamera, m_pGltfLoader, deviceName, driverVersion);
         } 
 
         // indicate the mainloop we started loading a GLTF and it needs to load the rest (textures and geometry)
@@ -416,25 +419,25 @@ void GLTFSample::BuildUI()
 
     if (ImGui::Button("Set spotlight 0"))
     {
-        int idx = m_pGltfLoader->m_lights[0].m_nodeIndex;
+        int idx = m_pGltfLoader->m_lightInstances[0].m_nodeIndex;
         m_pGltfLoader->m_nodes[idx].m_tranform.LookAt(m_state.camera.GetPosition(), m_state.camera.GetPosition() - m_state.camera.GetDirection());
         m_pGltfLoader->m_animatedMats[idx] = m_pGltfLoader->m_nodes[idx].m_tranform.GetWorldMat();
     }
 
-    // FreeSync2 display mode selector
+    // FreeSync HDR display mode selector
     // 
-    if (ImGui::Button("FreeSync2"))
+    if (ImGui::Button("FreeSync HDR"))
     {
-        ImGui::OpenPopup("FreeSync2");
+        ImGui::OpenPopup("FreeSync HDR");
         m_swapChain.EnumerateDisplayModes(&m_displayModesAvailable, &m_displayModesNamesAvailable);
     }
 
-    if (ImGui::BeginPopupModal("FreeSync2", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+    if (ImGui::BeginPopupModal("FreeSync HDR", NULL, ImGuiWindowFlags_AlwaysAutoResize))
     {
         if (m_displayModesAvailable.size() == 1)
         {
-            ImGui::Text("\nOpps! This window is not on a FreeSync2 monitor so the only available mode is SDR.\n\n");
-            ImGui::Text("If you have a FreeSync2 monitor move this window to that monitor and try again\n\n");
+            ImGui::Text("\nOpps! This window is not on a FreeSync HDR monitor so the only available mode is SDR.\n\n");
+            ImGui::Text("If you have a FreeSync HDR monitor move this window to that monitor and try again\n\n");
             if (ImGui::Button("Cancel", ImVec2(120, 0))) { ImGui::CloseCurrentPopup(); }
             ImGui::EndPopup();
         }
@@ -442,7 +445,7 @@ void GLTFSample::BuildUI()
         {
             if (m_swapChain.IsFullScreen() == false)
             {
-                ImGui::Text("\nFreeSync2 modes are only available in in fullscreen mode, please press ALT + ENTER for fun!\n\n");
+                ImGui::Text("\nFreeSync HDR modes are only available in in fullscreen mode, please press ALT + ENTER for fun!\n\n");
                 if (ImGui::Button("Cancel", ImVec2(120, 0))) { ImGui::CloseCurrentPopup(); }
                 ImGui::EndPopup();
             }
@@ -570,7 +573,7 @@ void GLTFSample::OnRender()
         // benchmarking takes control of the time, and exits the app when the animation is done
         std::vector<TimeStamp> timeStamps = m_Node->GetTimingValues();
 
-        m_time = BenchmarkLoop(timeStamps, &m_state.camera);
+        m_time = BenchmarkLoop(timeStamps, &m_state.camera, &m_state.m_pScreenShotName);
     }
     else
     {

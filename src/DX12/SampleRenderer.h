@@ -57,6 +57,8 @@ public:
         bool  m_isBenchmarking;
 
         bool  bDrawLightFrustum;
+
+        const std::string *m_pScreenShotName = NULL;
     };
 
     void OnCreate(Device* pDevice, SwapChain *pSwapChain);
@@ -169,4 +171,7 @@ private:
     WireframeBox                    m_wireframeBox;
 
     std::vector<TimeStamp>          m_TimeStamps;
+
+    SaveTexture                     m_saveTexture;
+    AsyncPool                       m_asyncPool;
 };

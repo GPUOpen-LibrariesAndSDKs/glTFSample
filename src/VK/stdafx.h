@@ -28,7 +28,7 @@ using namespace DirectX;
 #include "Base/Device.h"
 #include "Base/Helper.h"
 #include "Base/Texture.h"
-#include "Base/FreeSync2.h"
+#include "Base/FreeSyncHDR.h"
 #include "Base/SwapChain.h"
 #include "Base/UploadHeap.h"
 #include "Base/GPUTimeStamps.h"
@@ -37,7 +37,9 @@ using namespace DirectX;
 #include "Base/StaticBufferPool.h"
 #include "Base/DynamicBufferRing.h"
 #include "Base/ResourceViewHeaps.h"
+#include "Base/ShaderCompilerCache.h"
 #include "Base/ShaderCompilerHelper.h"
+
 
 #include "GLTF/GltfPbrPass.h"
 #include "GLTF/GltfBBoxPass.h"

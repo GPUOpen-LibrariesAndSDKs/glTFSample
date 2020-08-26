@@ -34,7 +34,7 @@ void SampleRenderer::OnCreate(Device *pDevice, SwapChain *pSwapChain)
 
     // Create all the heaps for the resources views
     const uint32_t cbvDescriptorCount = 2000;
-    const uint32_t srvDescriptorCount = 18000;
+    const uint32_t srvDescriptorCount = 8000;
     const uint32_t uavDescriptorCount = 10;
     const uint32_t samplerDescriptorCount = 20;
     m_resourceViewHeaps.OnCreate(pDevice, cbvDescriptorCount, srvDescriptorCount, uavDescriptorCount, samplerDescriptorCount);
@@ -44,13 +44,15 @@ void SampleRenderer::OnCreate(Device *pDevice, SwapChain *pSwapChain)
     m_CommandListRing.OnCreate(pDevice, backBufferCount, commandListsPerBackBuffer);
 
     // Create a 'dynamic' constant buffer
-    const uint32_t constantBuffersMemSize = 20 * 1024 * 1024;
+    const uint32_t constantBuffersMemSize = 200 * 1024 * 1024;
     m_ConstantBufferRing.OnCreate(pDevice, backBufferCount, constantBuffersMemSize, "Uniforms");
 
     // Create a 'static' pool for vertices and indices 
     const uint32_t staticGeometryMemSize = (5 * 128) * 1024 * 1024;
-    const uint32_t systemGeometryMemSize = 32 * 1024;    
     m_VidMemBufferPool.OnCreate(pDevice, staticGeometryMemSize, USE_VID_MEM, "StaticGeom");
+
+    // Create a 'static' pool for vertices and indices in system memory
+    const uint32_t systemGeometryMemSize = 32 * 1024;
     m_SysMemBufferPool.OnCreate(pDevice, systemGeometryMemSize, false, "PostProcGeom");
 
     // initialize the GPU time stamps module
@@ -117,7 +119,7 @@ void SampleRenderer::OnCreate(Device *pDevice, SwapChain *pSwapChain)
     m_toneMappingCS.OnCreate(pDevice, &m_resourceViewHeaps, &m_ConstantBufferRing);
     m_toneMappingPS.OnCreate(m_pDevice, pSwapChain->GetRenderPass(), &m_resourceViewHeaps, &m_VidMemBufferPool, &m_ConstantBufferRing);
     m_colorConversionPS.OnCreate(pDevice, pSwapChain->GetRenderPass(), &m_resourceViewHeaps, &m_VidMemBufferPool, &m_ConstantBufferRing);
-    
+
     // Initialize UI rendering resources
     m_ImGUI.OnCreate(m_pDevice, pSwapChain->GetRenderPass(), &m_UploadHeap, &m_ConstantBufferRing);
 
@@ -210,7 +212,6 @@ void SampleRenderer::OnCreateWindowSizeDependentResources(SwapChain *pSwapChain,
     // Create framebuffer for the MSAA RT
     //
     {
-
         VkFramebufferCreateInfo fb_info = {};
         fb_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         fb_info.pNext = NULL;
@@ -288,6 +289,9 @@ int SampleRenderer::LoadScene(GLTFCommon *pGLTFCommon, int stage)
         ImGui::EndPopup();
     } 
 
+    // use multithreading
+    AsyncPool *pAsyncPool = &m_asyncPool;
+
     // Loading stages
     //
     if (stage == 0)
@@ -306,7 +310,7 @@ int SampleRenderer::LoadScene(GLTFCommon *pGLTFCommon, int stage)
 
         // here we are loading onto the GPU all the textures and the inverse matrices
         // this data will be used to create the PBR and Depth passes       
-        m_pGLTFTexturesAndBuffers->LoadTextures();
+        m_pGLTFTexturesAndBuffers->LoadTextures(pAsyncPool);
     }
     else if (stage == 7)
     {
@@ -321,7 +325,8 @@ int SampleRenderer::LoadScene(GLTFCommon *pGLTFCommon, int stage)
             &m_resourceViewHeaps,
             &m_ConstantBufferRing,
             &m_VidMemBufferPool,
-            m_pGLTFTexturesAndBuffers
+            m_pGLTFTexturesAndBuffers,
+            pAsyncPool
         );
 
 #if (USE_VID_MEM==true)
@@ -344,13 +349,16 @@ int SampleRenderer::LoadScene(GLTFCommon *pGLTFCommon, int stage)
             &m_VidMemBufferPool,
             m_pGLTFTexturesAndBuffers,
             &m_skyDome,
+            false, // use SSAO mask
             m_shadowMapSRV,
             true,  // Exports ForwardPass
             false, // Won't export Specular Roughness
             false, // Won't export Diffuse Color
             false, // Won't export normals
-            VK_SAMPLE_COUNT_4_BIT
+            VK_SAMPLE_COUNT_4_BIT,
+            pAsyncPool
         );
+
 #if (USE_VID_MEM==true)
         m_VidMemBufferPool.UploadData(m_UploadHeap.GetCommandList());
         m_UploadHeap.FlushAndFinish();
@@ -472,6 +480,8 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
         // Set some lighting factors
         pPerFrame->iblFactor = pState->iblFactor;
         pPerFrame->emmisiveFactor = pState->emmisiveFactor;
+        pPerFrame->invScreenResolution[0] = 1.0f / ((float)m_Width);
+        pPerFrame->invScreenResolution[1] = 1.0f / ((float)m_Height);
 
         // Set shadowmaps bias and an index that indicates the rectangle of the atlas in which depth will be rendered
         uint32_t shadowMapIndex = 0;
@@ -774,7 +784,7 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
         SetPerfMarkerEnd(cmdBuf1);
     }
 
-    // If using FreeSync2 we need to to the tonemapping in-place and then apply the GUI, later we'll apply the color conversion into the swapchain
+    // If using FreeSync HDR we need to to the tonemapping in-place and then apply the GUI, later we'll apply the color conversion into the swapchain
     //
     if (pSwapChain->GetDisplayMode() != DISPLAYMODE_SDR)
     {
@@ -917,7 +927,7 @@ void SampleRenderer::OnRender(State *pState, SwapChain *pSwapChain)
     }
     else
     {
-        // non FS2 mode, that is SDR, here we apply the tonemapping from the HDR into the swapchain and then we render the GUI
+        // non FreeSync HDR mode, that is SDR, here we apply the tonemapping from the HDR into the swapchain and then we render the GUI
         //
 
         // Tonemapping ------------------------------------------------------------------------
