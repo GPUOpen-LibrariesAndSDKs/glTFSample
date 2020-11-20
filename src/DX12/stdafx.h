@@ -56,7 +56,6 @@ using namespace DirectX;
 #include "PostProc/TAA.h"
 #include "PostProc/Bloom.h"
 #include "PostProc/BlurPS.h"
-#include "PostProc/Sharpen.h"
 #include "PostProc/SkyDome.h"
 #include "PostProc/SkyDomeProc.h"
 #include "PostProc/PostProcCS.h"

@@ -49,6 +49,7 @@ using namespace DirectX;
 #include "Misc/Camera.h"
 #include "Misc/FrameworkWindows.h"
 
+#include "PostProc/TAA.h"
 #include "PostProc/Bloom.h"
 #include "PostProc/BlurPS.h"
 #include "PostProc/SkyDome.h"

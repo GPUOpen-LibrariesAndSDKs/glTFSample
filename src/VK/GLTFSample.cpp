@@ -1,6 +1,6 @@
 // AMD SampleVK sample code
 // 
-// Copyright(c) 2018 Advanced Micro Devices, Inc.All rights reserved.
+// Copyright(c) 2020 Advanced Micro Devices, Inc.All rights reserved.
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files(the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
@@ -144,7 +144,7 @@ void GLTFSample::OnCreate(HWND hWnd)
 
     // init GUI state
     m_state.toneMapper = 0;
-    m_state.m_useTAA = false; // no TAA in VK
+    m_state.m_useTAA = true;
     m_state.skyDomeType = 0;
     m_state.exposure = 1.0f;
     m_state.iblFactor = 2.0f;
@@ -391,7 +391,7 @@ void GLTFSample::BuildUI()
     }
 
     ImGui::SliderFloat("exposure", &m_state.exposure, 0.0f, 4.0f);
-    ImGui::SliderFloat("emmisive", &m_state.emmisiveFactor, 1.0f, 1000.0f, NULL, 1.0f);
+    ImGui::SliderFloat("emissive", &m_state.emmisiveFactor, 1.0f, 1000.0f, NULL, 1.0f);
     ImGui::SliderFloat("iblFactor", &m_state.iblFactor, 0.0f, 3.0f);
     for (int i = 0; i < m_pGltfLoader->m_lights.size(); i++)
     {
@@ -409,6 +409,7 @@ void GLTFSample::BuildUI()
         m_activeCamera = 0;
     ImGui::Combo("Camera", &m_activeCamera, cameraControl, min((int)(m_pGltfLoader->m_cameras.size() + 2), _countof(cameraControl)));
 
+    ImGui::Checkbox("TAA", &m_state.m_useTAA);
     ImGui::Checkbox("Show Bounding Boxes", &m_state.bDrawBoundingBoxes);
     ImGui::Checkbox("Show Light Frustum", &m_state.bDrawLightFrustum);
 
@@ -419,7 +420,7 @@ void GLTFSample::BuildUI()
         m_pGltfLoader->m_animatedMats[idx] = m_pGltfLoader->m_nodes[idx].m_tranform.GetWorldMat();
     }
 
-    // FreeSync2 display mode selector
+    // FreeSync HDR display mode selector
     // 
     if (ImGui::Button("FreeSync HDR"))
     {
@@ -631,7 +632,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
     LPSTR lpCmdLine,
     int nCmdShow)
 {
-    LPCSTR Name = "SampleVK v1.0";
+    LPCSTR Name = "SampleVK v1.3";
 
     // create new Vulkan sample
     return RunFramework(hInstance, lpCmdLine, nCmdShow, new GLTFSample(Name));

@@ -10,7 +10,7 @@
     "stablePowerState": false
   },
   "scenes": [
-    {
+  {
       "name": "Sponza",
       "directory": "..\\media\\cauldron-media\\sponza\\GLTF\\",
       "filename": "sponza.gltf",

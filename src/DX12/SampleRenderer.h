@@ -1,6 +1,6 @@
 // AMD SampleDX12 sample code
 // 
-// Copyright(c) 2018 Advanced Micro Devices, Inc.All rights reserved.
+// Copyright(c) 2020 Advanced Micro Devices, Inc.All rights reserved.
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files(the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
@@ -17,6 +17,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 #pragma once
+#include "base/GBuffer.h"
 
 // We are queuing (backBufferCount + 0.5) frames, so we need to triple buffer the resources that get modified each frame
 static const int backBufferCount = 3;
@@ -98,7 +99,6 @@ private:
     GltfPbrPass                    *m_gltfPBR;
     GltfBBoxPass                   *m_gltfBBox;
     GltfDepthPass                  *m_gltfDepth;
-    GltfMotionVectorsPass          *m_gltfMotionVectors;
     GLTFTexturesAndBuffers         *m_pGLTFTexturesAndBuffers;
 
     // effects
@@ -109,39 +109,19 @@ private:
     ToneMapping                     m_toneMappingPS;
     ToneMappingCS                   m_toneMappingCS;
     ColorConversionPS               m_colorConversionPS;
-    Sharpen                         m_sharpen;
-    TAA                             m_taa;
+    TAA                             m_TAA;
 
     // GUI
     ImGUI                           m_ImGUI;
 
     // Temporary render targets
+    GBuffer                         m_GBuffer;
+    GBufferRenderPass               m_renderPassFullGBuffer;
+    GBufferRenderPass               m_renderPassJustDepthAndHdr;
 
-    // depth buffer
-    Texture                         m_depthBuffer;
-    DSV                             m_depthBufferDSV;
-
-    // Motion Vectors resources
     Texture                         m_MotionVectorsDepthMap;
     DSV                             m_MotionVectorsDepthMapDSV;
     CBV_SRV_UAV                     m_MotionVectorsDepthMapSRV;
-    Texture                         m_MotionVectors;
-    RTV                             m_MotionVectorsRTV;
-    CBV_SRV_UAV                     m_MotionVectorsSRV;
-    CBV_SRV_UAV                     m_MotionVectorsInputsSRV;
-
-    // TAA buffer
-    Texture                         m_TAABuffer;
-    CBV_SRV_UAV                     m_TAABufferSRV;
-    CBV_SRV_UAV                     m_TAABufferUAV;
-    CBV_SRV_UAV                     m_TAAInputsSRV;
-    Texture                         m_HistoryBuffer;
-    RTV                             m_HistoryBufferRTV;
-
-    // Normal buffer
-    Texture                         m_NormalBuffer;
-    RTV                             m_NormalBufferRTV;
-    CBV_SRV_UAV                     m_NormalBufferSRV;
 
 #if USE_SHADOWMASK
     // shadow mask
@@ -155,16 +135,6 @@ private:
     Texture                         m_shadowMap;
     DSV                             m_ShadowMapDSV;
     CBV_SRV_UAV                     m_ShadowMapSRV;
-
-    // MSAA RT
-    Texture                         m_HDRMSAA;
-    RTV                             m_HDRRTVMSAA;
-
-    // Resolved RT
-    Texture                         m_HDR;
-    CBV_SRV_UAV                     m_HDRSRV;
-    CBV_SRV_UAV                     m_HDRUAV;
-    RTV                             m_HDRRTV;
 
     // widgets
     Wireframe                       m_wireframe;

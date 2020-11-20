@@ -1,6 +1,6 @@
 // AMD SampleDX12 sample code
 // 
-// Copyright(c) 2018 Advanced Micro Devices, Inc.All rights reserved.
+// Copyright(c) 2020 Advanced Micro Devices, Inc.All rights reserved.
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files(the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
@@ -238,7 +238,7 @@ void GLTFSample::OnResize(uint32_t width, uint32_t height, DisplayModes displayM
         //
         m_device.GPUFlush();
 
-        // destroy resources (if were not minimized)
+        // destroy resources (if we are not minimized)
         //
         if (m_Width > 0 && m_Height > 0)
         {
@@ -395,7 +395,7 @@ void GLTFSample::BuildUI()
     }
 
     ImGui::SliderFloat("exposure", &m_state.exposure, 0.0f, 4.0f);
-    ImGui::SliderFloat("emmisive", &m_state.emmisiveFactor, 1.0f, 1000.0f, NULL, 1.0f);
+    ImGui::SliderFloat("emissive", &m_state.emmisiveFactor, 1.0f, 1000.0f, NULL, 1.0f);
     ImGui::SliderFloat("iblFactor", &m_state.iblFactor, 0.0f, 3.0f);
     for (int i = 0; i < m_pGltfLoader->m_lights.size(); i++)
     {
@@ -616,7 +616,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
     LPSTR lpCmdLine,
     int nCmdShow)
 {
-    LPCSTR Name = "SampleDX12 v1.0";
+    LPCSTR Name = "SampleDX12 v1.3";
 
     // create new DX sample
     return RunFramework(hInstance, lpCmdLine, nCmdShow, new GLTFSample(Name));

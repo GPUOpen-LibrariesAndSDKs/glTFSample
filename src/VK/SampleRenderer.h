@@ -1,6 +1,6 @@
 // AMD SampleVK sample code
 // 
-// Copyright(c) 2018 Advanced Micro Devices, Inc.All rights reserved.
+// Copyright(c) 2020 Advanced Micro Devices, Inc.All rights reserved.
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files(the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
@@ -17,6 +17,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 #pragma once
+#include "base/GBuffer.h"
 
 // We are queuing (backBufferCount + 0.5) frames, so we need to triple buffer the resources that get modified each frame
 static const int backBufferCount = 3;
@@ -105,41 +106,28 @@ private:
     ToneMapping                     m_toneMappingPS;
     ToneMappingCS                   m_toneMappingCS;
     ColorConversionPS               m_colorConversionPS;
+    TAA                             m_TAA;
 
     // GUI
     ImGUI                           m_ImGUI;
 
-    // Temporary render targets
-
-    // depth buffer
-    Texture                         m_depthBuffer;
-    VkImageView                     m_depthBufferDSV;
+    // GBuffer and render passes
+    GBuffer                         m_GBuffer;
+    GBufferRenderPass               m_renderPassFullGBufferWithClear;
+    GBufferRenderPass               m_renderPassJustDepthAndHdr;
+    GBufferRenderPass               m_renderPassFullGBuffer;
 
     // shadowmaps
     Texture                         m_shadowMap;
     VkImageView                     m_shadowMapDSV;
     VkImageView                     m_shadowMapSRV;
 
-    // MSAA RT
-    Texture                         m_HDRMSAA;
-    VkImageView                     m_HDRMSAARTV;
-
-    // Resolved RT
-    Texture                         m_HDR;
-    VkImageView                     m_HDRSRV;
-    VkImageView                     m_HDRUAV;
-
     // widgets
     Wireframe                       m_wireframe;
     WireframeBox                    m_wireframeBox;
 
     VkRenderPass                    m_render_pass_shadow;
-    VkRenderPass                    m_render_pass_HDR_MSAA;
-    VkRenderPass                    m_render_pass_PBR_HDR;
-
     VkFramebuffer                   m_pFrameBuffer_shadow;
-    VkFramebuffer                   m_pFrameBuffer_HDR_MSAA;
-    VkFramebuffer                   m_pFrameBuffer_PBR_HDR;
 
     std::vector<TimeStamp>          m_TimeStamps;
 
