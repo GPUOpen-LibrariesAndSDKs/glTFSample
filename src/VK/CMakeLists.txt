@@ -1,29 +1,19 @@
-project(${PROJECT_NAME})
-include(${CMAKE_CURRENT_SOURCE_DIR}/../../common.cmake)
-
-add_compile_options(/MP)
-
 set(sources
     GLTFSample.cpp
     GLTFSample.h
-    SampleRenderer.cpp
-    SampleRenderer.h
+    Renderer.cpp
+    Renderer.h
+	UI.cpp
+    UI.h
     stdafx.cpp
-    stdafx.h) 
-
-set(config
-	${CMAKE_CURRENT_SOURCE_DIR}/../Common/GLTFSample.json
-)
-
-
-copyCommand("${config}" ${CMAKE_HOME_DIRECTORY}/bin)
+    stdafx.h
+    dpiawarescaling.manifest)
 
 source_group("Sources" FILES ${sources})
-source_group("Config" FILES ${config})
+source_group("Icon"    FILES ${icon_src}) # defined in top-level CMakeLists.txt
 
-add_executable(${PROJECT_NAME} WIN32 ${sources} ${config})
-target_link_libraries(${PROJECT_NAME} LINK_PUBLIC Cauldron_VK ImGUI Vulkan::Vulkan)
+add_executable(GLTFSample_VK WIN32 ${sources} ${icon_src})
 
-set_target_properties(${PROJECT_NAME} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_HOME_DIRECTORY}/bin")
+target_link_libraries(GLTFSample_VK LINK_PUBLIC GLTFSample_Common Cauldron_VK ImGUI Vulkan::Vulkan)
 
-addManifest(${PROJECT_NAME})
+set_target_properties(GLTFSample_VK PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_HOME_DIRECTORY}/bin" DEBUG_POSTFIX "d")

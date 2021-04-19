@@ -18,9 +18,8 @@
 
 #include "vulkan/vulkan.h"
 
-// we are using DirectXMath
-#include <DirectXMath.h>
-using namespace DirectX;
+// Pull in math library
+#include "../../libs/vectormath/vectormath.hpp"
 
 // TODO: reference additional headers your program requires here
 #include "Base/Imgui.h"
@@ -28,11 +27,11 @@ using namespace DirectX;
 #include "Base/Device.h"
 #include "Base/Helper.h"
 #include "Base/Texture.h"
+#include "Base/FrameworkWindows.h"
 #include "Base/FreeSyncHDR.h"
 #include "Base/SwapChain.h"
 #include "Base/UploadHeap.h"
 #include "Base/GPUTimeStamps.h"
-#include "Base/ExtDebugMarkers.h"
 #include "Base/CommandListRing.h"
 #include "Base/StaticBufferPool.h"
 #include "Base/DynamicBufferRing.h"
@@ -47,7 +46,6 @@ using namespace DirectX;
 
 #include "Misc/Misc.h"
 #include "Misc/Camera.h"
-#include "Misc/FrameworkWindows.h"
 
 #include "PostProc/TAA.h"
 #include "PostProc/Bloom.h"

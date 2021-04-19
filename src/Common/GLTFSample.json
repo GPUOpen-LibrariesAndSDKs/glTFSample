@@ -2,12 +2,15 @@
   "globals": {
     "CpuValidationLayerEnabled": false,
     "GpuValidationLayerEnabled": false,
-    "fullScreen": false,
+    "presentationMode": 0,
     "width": 1920,
     "height": 1080,
-    "activeScene": 0,
+    "activeScene": 1,
     "benchmark": false,
-    "stablePowerState": false
+    "vsync": false,
+    "stablePowerState": false,
+    "FreesyncHDROptionEnabled": false,
+    "fontsize":  13
   },
   "scenes": [
   {

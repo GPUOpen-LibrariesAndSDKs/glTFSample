@@ -1,6 +1,6 @@
 variables:
   SampleName: GLTFSample
-  CMakeConfig: -G "Visual Studio 15 2017" -A x64
+  CMakeConfig: -G "Visual Studio 16 2019" -A x64
   CaudronMediaUrl: http://isvgit.amd.com/raguaviv/cauldron-media/-/archive/master/cauldron-media-master.zip
   GIT_SUBMODULE_STRATEGY: normal
 

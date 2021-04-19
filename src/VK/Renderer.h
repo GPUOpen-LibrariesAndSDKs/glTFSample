@@ -17,62 +17,41 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 #pragma once
+
+#include "stdafx.h"
+
 #include "base/GBuffer.h"
+#include "PostProc/MagnifierPS.h"
 
 // We are queuing (backBufferCount + 0.5) frames, so we need to triple buffer the resources that get modified each frame
 static const int backBufferCount = 3;
 
-#define USE_VID_MEM true
-
 using namespace CAULDRON_VK;
 
-//
-// This class deals with the GPU side of the sample.
-//
+struct UIState;
 
-class SampleRenderer
+//
+// Renderer class is responsible for rendering resources management and recording command buffers.
+class Renderer
 {
 public:
-    struct Spotlight
-    {
-        Camera light;
-        XMVECTOR color;
-        float intensity;
-    };
-
-    struct State
-    {
-        float time;
-        Camera camera;
-
-        float exposure;
-        float iblFactor;
-        float emmisiveFactor;
-
-        int   toneMapper;
-        int   skyDomeType;
-        bool  bDrawBoundingBoxes;
-
-        bool  m_useTAA;
-
-        bool  m_isBenchmarking;
-        bool  m_isValidationLayerEnabled;
-
-        bool  bDrawLightFrustum;
-    };
-
-    void OnCreate(Device *pDevice, SwapChain *pSwapChain);
+    void OnCreate(Device *pDevice, SwapChain *pSwapChain, float FontSize);
     void OnDestroy();
 
     void OnCreateWindowSizeDependentResources(SwapChain *pSwapChain, uint32_t Width, uint32_t Height);
     void OnDestroyWindowSizeDependentResources();
 
-    int LoadScene(GLTFCommon *pGLTFCommon, int stage = 0);
+    void OnUpdateDisplayDependentResources(SwapChain *pSwapChain, bool bUseMagnifier);
+    void OnUpdateLocalDimmingChangedResources(SwapChain *pSwapChain);
+
+    int LoadScene(GLTFCommon *pGLTFCommon, int Stage = 0);
     void UnloadScene();
+
+    void AllocateShadowMaps(GLTFCommon* pGLTFCommon);
 
     const std::vector<TimeStamp> &GetTimingValues() { return m_TimeStamps; }
 
-    void OnRender(State *pState, SwapChain *pSwapChain);
+    void OnRender(const UIState* pState, const Camera& Cam, SwapChain* pSwapChain);
 
 private:
     Device *m_pDevice;
@@ -80,11 +59,11 @@ private:
     uint32_t                        m_Width;
     uint32_t                        m_Height;
 
-    VkRect2D                        m_rectScissor;
-    VkViewport                      m_viewport;
+    VkRect2D                        m_RectScissor;
+    VkViewport                      m_Viewport;
 
     // Initialize helper classes
-    ResourceViewHeaps               m_resourceViewHeaps;
+    ResourceViewHeaps               m_ResourceViewHeaps;
     UploadHeap                      m_UploadHeap;
     DynamicBufferRing               m_ConstantBufferRing;
     StaticBufferPool                m_VidMemBufferPool;
@@ -93,44 +72,53 @@ private:
     GPUTimestamps                   m_GPUTimer;
 
     //gltf passes
-    GltfPbrPass                    *m_gltfPBR;
-    GltfBBoxPass                   *m_gltfBBox;
-    GltfDepthPass                  *m_gltfDepth;
+    GltfPbrPass                    *m_GLTFPBR;
+    GltfBBoxPass                   *m_GLTFBBox;
+    GltfDepthPass                  *m_GLTFDepth;
     GLTFTexturesAndBuffers         *m_pGLTFTexturesAndBuffers;
 
     // effects
-    Bloom                           m_bloom;
-    SkyDome                         m_skyDome;
-    DownSamplePS                    m_downSample;
-    SkyDomeProc                     m_skyDomeProc;
-    ToneMapping                     m_toneMappingPS;
-    ToneMappingCS                   m_toneMappingCS;
-    ColorConversionPS               m_colorConversionPS;
+    Bloom                           m_Bloom;
+    SkyDome                         m_SkyDome;
+    DownSamplePS                    m_DownSample;
+    SkyDomeProc                     m_SkyDomeProc;
+    ToneMapping                     m_ToneMappingPS;
+    ToneMappingCS                   m_ToneMappingCS;
+    ColorConversionPS               m_ColorConversionPS;
     TAA                             m_TAA;
+    MagnifierPS                     m_MagnifierPS;
+    bool                            m_bMagResourceReInit = false;
 
     // GUI
     ImGUI                           m_ImGUI;
 
     // GBuffer and render passes
     GBuffer                         m_GBuffer;
-    GBufferRenderPass               m_renderPassFullGBufferWithClear;
-    GBufferRenderPass               m_renderPassJustDepthAndHdr;
-    GBufferRenderPass               m_renderPassFullGBuffer;
+    GBufferRenderPass               m_RenderPassFullGBufferWithClear;
+    GBufferRenderPass               m_RenderPassJustDepthAndHdr;
+    GBufferRenderPass               m_RenderPassFullGBuffer;
 
     // shadowmaps
-    Texture                         m_shadowMap;
-    VkImageView                     m_shadowMapDSV;
-    VkImageView                     m_shadowMapSRV;
+    VkRenderPass                    m_Render_pass_shadow;
+
+    typedef struct {
+        Texture         ShadowMap;
+        uint32_t        ShadowIndex;
+        uint32_t        ShadowResolution;
+        uint32_t        LightIndex;
+        VkImageView     ShadowDSV;
+        VkFramebuffer   ShadowFrameBuffer;
+    } SceneShadowInfo;
+
+    std::vector<SceneShadowInfo>    m_shadowMapPool;
+    std::vector< VkImageView>       m_ShadowSRVPool;
 
     // widgets
-    Wireframe                       m_wireframe;
-    WireframeBox                    m_wireframeBox;
-
-    VkRenderPass                    m_render_pass_shadow;
-    VkFramebuffer                   m_pFrameBuffer_shadow;
+    Wireframe                       m_Wireframe;
+    WireframeBox                    m_WireframeBox;
 
     std::vector<TimeStamp>          m_TimeStamps;
 
-    AsyncPool                       m_asyncPool;
+    AsyncPool                       m_AsyncPool;
 };
 

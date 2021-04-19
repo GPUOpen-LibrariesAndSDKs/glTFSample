@@ -18,17 +18,16 @@
 // THE SOFTWARE.
 
 #include "stdafx.h"
+#include <intrin.h>
 
 #include "GLTFSample.h"
 
 GLTFSample::GLTFSample(LPCSTR name) : FrameworkWindows(name)
 {
-    m_lastFrameTime = MillisecondsNow();
     m_time = 0;
     m_bPlay = true;
 
     m_pGltfLoader = NULL;
-    m_currentDisplayMode = DISPLAYMODE_SDR;
 }
 
 //--------------------------------------------------------------------------------------
@@ -36,14 +35,15 @@ GLTFSample::GLTFSample(LPCSTR name) : FrameworkWindows(name)
 // OnParseCommandLine
 //
 //--------------------------------------------------------------------------------------
-void GLTFSample::OnParseCommandLine(LPSTR lpCmdLine, uint32_t* pWidth, uint32_t* pHeight, bool *pbFullScreen)
+void GLTFSample::OnParseCommandLine(LPSTR lpCmdLine, uint32_t* pWidth, uint32_t* pHeight)
 {
     // set some default values
     *pWidth = 1920; 
     *pHeight = 1080; 
     m_activeScene = 0; //load the first one by default
-    *pbFullScreen = false;
-    m_state.m_isBenchmarking = false;
+    m_VsyncEnabled = false;
+    m_bIsBenchmarking = false;
+    m_fontSize = 13.f; // default value overridden by a json file if available
     m_isCpuValidationLayerEnabled = false;
     m_isGpuValidationLayerEnabled = false;
     m_activeCamera = 0;
@@ -54,13 +54,16 @@ void GLTFSample::OnParseCommandLine(LPSTR lpCmdLine, uint32_t* pWidth, uint32_t*
     {
         *pWidth = jData.value("width", *pWidth);
         *pHeight = jData.value("height", *pHeight);
-        *pbFullScreen = jData.value("fullScreen", *pbFullScreen);
+        m_fullscreenMode = jData.value("presentationMode", m_fullscreenMode);
         m_activeScene = jData.value("activeScene", m_activeScene);
         m_activeCamera = jData.value("activeCamera", m_activeCamera);
         m_isCpuValidationLayerEnabled = jData.value("CpuValidationLayerEnabled", m_isCpuValidationLayerEnabled);
         m_isGpuValidationLayerEnabled = jData.value("GpuValidationLayerEnabled", m_isGpuValidationLayerEnabled);
-        m_state.m_isBenchmarking = jData.value("benchmark", m_state.m_isBenchmarking);
+        m_VsyncEnabled = jData.value("vsync", m_VsyncEnabled);
+        m_FreesyncHDROptionEnabled = jData.value("FreesyncHDROptionEnabled", m_FreesyncHDROptionEnabled);
+        m_bIsBenchmarking = jData.value("benchmark", m_bIsBenchmarking);
         m_stablePowerState = jData.value("stablePowerState", m_stablePowerState);
+        m_fontSize = jData.value("fontsize", m_fontSize);
     };
 
     //read json globals from commandline
@@ -114,51 +117,25 @@ void GLTFSample::OnParseCommandLine(LPSTR lpCmdLine, uint32_t* pWidth, uint32_t*
 // OnCreate
 //
 //--------------------------------------------------------------------------------------
-void GLTFSample::OnCreate(HWND hWnd)
+void GLTFSample::OnCreate()
 {
-    // Create Device
-    //
-    m_device.OnCreate("myapp", "myEngine", m_isCpuValidationLayerEnabled, m_isGpuValidationLayerEnabled, hWnd);
-    m_device.CreatePipelineCache();
-
-    // set stable power state
-    if (m_stablePowerState)
-        m_device.GetDevice()->SetStablePowerState(TRUE);
-
     //init the shader compiler
     InitDirectXCompiler();
     CreateShaderCache();
 
-    // Create Swapchain
-    //
-    uint32_t dwNumberOfBackBuffers = 2;
-    m_swapChain.OnCreate(&m_device, dwNumberOfBackBuffers, hWnd);
-
     // Create a instance of the renderer and initialize it, we need to do that for each GPU
-    //
-    m_Node = new SampleRenderer();
-    m_Node->OnCreate(&m_device, &m_swapChain);
+    m_pRenderer = new Renderer();
+    m_pRenderer->OnCreate(&m_device, &m_swapChain, m_fontSize);
 
     // init GUI (non gfx stuff)
-    //
-    ImGUI_Init((void *)hWnd);
+    ImGUI_Init((void *)m_windowHwnd);
+    m_UIState.Initialize();
+
+    OnResize();
+    OnUpdateDisplay();
 
     // Init Camera, looking at the origin
-    //
-    m_roll = 0.0f;
-    m_pitch = 0.0f;
-    m_distance = 3.5f;
-
-    // init GUI state
-    m_state.toneMapper = 0;
-    m_state.m_useTAA = true;
-    m_state.skyDomeType = 0;
-    m_state.exposure = 1.0f;
-    m_state.iblFactor = 2.0f;
-    m_state.emmisiveFactor = 1.0f;
-    m_state.bDrawLightFrustum = false;
-    m_state.bDrawBoundingBoxes = false;
-    m_state.camera.LookAt(m_roll, m_pitch, m_distance, XMVectorSet(0, 0, 0, 0));
+    m_camera.LookAt(math::Vector4(0, 0, 5, 0), math::Vector4(0, 0, 0, 0));
 }
 
 //--------------------------------------------------------------------------------------
@@ -172,17 +149,11 @@ void GLTFSample::OnDestroy()
 
     m_device.GPUFlush();
 
-    // Fullscreen state should always be false before exiting the app.
-    m_swapChain.SetFullScreen(false);
+    m_pRenderer->UnloadScene();
+    m_pRenderer->OnDestroyWindowSizeDependentResources();
+    m_pRenderer->OnDestroy();
 
-    m_Node->UnloadScene();
-    m_Node->OnDestroyWindowSizeDependentResources();
-    m_Node->OnDestroy();
-
-    delete m_Node;
-
-    m_swapChain.OnDestroyWindowSizeDependentResources();
-    m_swapChain.OnDestroy();
+    delete m_pRenderer;
 
     //shut down the shader compiler 
     DestroyShaderCache(&m_device);
@@ -192,8 +163,6 @@ void GLTFSample::OnDestroy()
         delete m_pGltfLoader;
         m_pGltfLoader = NULL;
     }
-
-    m_device.OnDestroy();
 }
 
 //--------------------------------------------------------------------------------------
@@ -206,23 +175,20 @@ bool GLTFSample::OnEvent(MSG msg)
     if (ImGUI_WndProcHandler(msg.hwnd, msg.message, msg.wParam, msg.lParam))
         return true;
 
+    // handle function keys (F1, F2...) here, rest of the input is handled
+    // by imGUI later in HandleInput() function
+    const WPARAM& KeyPressed = msg.wParam;
+    switch (msg.message)
+    {
+    case WM_KEYUP:
+    case WM_SYSKEYUP:
+        /* WINDOW TOGGLES */
+        if (KeyPressed == VK_F1) m_UIState.bShowControlsWindow ^= 1;
+        if (KeyPressed == VK_F2) m_UIState.bShowProfilerWindow ^= 1;
+        break;
+    }
+
     return true;
-}
-
-//--------------------------------------------------------------------------------------
-//
-// SetFullScreen
-//
-//--------------------------------------------------------------------------------------
-void GLTFSample::SetFullScreen(bool fullscreen)
-{
-    m_device.GPUFlush();
-
-    // when going to windowed make sure we are always using SDR
-    if ((fullscreen == false) && (m_currentDisplayMode != DISPLAYMODE_SDR))
-        m_currentDisplayMode = DISPLAYMODE_SDR;
-
-    m_swapChain.SetFullScreen(fullscreen);
 }
 
 //--------------------------------------------------------------------------------------
@@ -230,41 +196,30 @@ void GLTFSample::SetFullScreen(bool fullscreen)
 // OnResize
 //
 //--------------------------------------------------------------------------------------
-void GLTFSample::OnResize(uint32_t width, uint32_t height, DisplayModes displayMode)
+void GLTFSample::OnResize()
 {
-    if (m_Width != width || m_Height != height || m_currentDisplayMode != displayMode)
+	// Destroy resources (if we are not minimized)
+    if (m_Width && m_Height && m_pRenderer)
     {
-        // Flush GPU
-        //
-        m_device.GPUFlush();
-
-        // destroy resources (if we are not minimized)
-        //
-        if (m_Width > 0 && m_Height > 0)
-        {
-            if (m_Node!=NULL)
-            {
-                m_Node->OnDestroyWindowSizeDependentResources();
-            }
-            m_swapChain.OnDestroyWindowSizeDependentResources();
-        }
-
-        m_Width = width;
-        m_Height = height;
-        m_currentDisplayMode = displayMode;
-
-        // if resizing but not minimizing the recreate it with the new size
-        //
-        if (m_Width > 0 && m_Height > 0)
-        {
-            m_swapChain.OnCreateWindowSizeDependentResources(m_Width, m_Height, false, m_currentDisplayMode);
-            if (m_Node != NULL)
-            {
-                m_Node->OnCreateWindowSizeDependentResources(&m_swapChain, m_Width, m_Height);
-            }
-        }
+        m_pRenderer->OnDestroyWindowSizeDependentResources();
+        m_pRenderer->OnCreateWindowSizeDependentResources(&m_swapChain, m_Width, m_Height);
     }
-    m_state.camera.SetFov(XM_PI / 4, m_Width, m_Height, 0.1f, 1000.0f);
+	
+    m_camera.SetFov(AMD_PI_OVER_4, m_Width, m_Height, 0.1f, 1000.0f);
+}
+
+//--------------------------------------------------------------------------------------
+//
+// UpdateDisplay
+//
+//--------------------------------------------------------------------------------------
+void GLTFSample::OnUpdateDisplay()
+{
+    // Destroy resources (if we are not minimized)
+    if (m_pRenderer)
+    {
+        m_pRenderer->OnUpdateDisplayDependentResources(&m_swapChain);
+    }
 }
 
 //--------------------------------------------------------------------------------------
@@ -279,12 +234,12 @@ void GLTFSample::LoadScene(int sceneIndex)
     // release everything and load the GLTF, just the light json data, the rest (textures and geometry) will be done in the main loop
     if (m_pGltfLoader != NULL)
     {
-        m_Node->UnloadScene();
-        m_Node->OnDestroyWindowSizeDependentResources();
-        m_Node->OnDestroy();
+        m_pRenderer->UnloadScene();
+        m_pRenderer->OnDestroyWindowSizeDependentResources();
+        m_pRenderer->OnDestroy();
         m_pGltfLoader->Unload();
-        m_Node->OnCreate(&m_device, &m_swapChain);
-        m_Node->OnCreateWindowSizeDependentResources(&m_swapChain, m_Width, m_Height);
+        m_pRenderer->OnCreate(&m_device, &m_swapChain, m_fontSize);
+        m_pRenderer->OnCreateWindowSizeDependentResources(&m_swapChain, m_Width, m_Height);
     }
 
     delete(m_pGltfLoader);
@@ -300,46 +255,44 @@ void GLTFSample::LoadScene(int sceneIndex)
 #define LOAD(j, key, val) val = j.value(key, val)
 
         // global settings
-        LOAD(scene, "TAA", m_state.m_useTAA);
-        LOAD(scene, "toneMapper", m_state.toneMapper);
-        LOAD(scene, "skyDomeType", m_state.skyDomeType);
-        LOAD(scene, "exposure", m_state.exposure);
-        LOAD(scene, "iblFactor", m_state.iblFactor);
-        LOAD(scene, "emmisiveFactor", m_state.emmisiveFactor);
-        LOAD(scene, "skyDomeType", m_state.skyDomeType);
+        LOAD(scene, "TAA", m_UIState.bUseTAA);
+        LOAD(scene, "toneMapper", m_UIState.SelectedTonemapperIndex);
+        LOAD(scene, "skyDomeType", m_UIState.SelectedSkydomeTypeIndex);
+        LOAD(scene, "exposure", m_UIState.Exposure);
+        LOAD(scene, "iblFactor", m_UIState.IBLFactor);
+        LOAD(scene, "emmisiveFactor", m_UIState.EmissiveFactor);
+        LOAD(scene, "skyDomeType", m_UIState.SelectedSkydomeTypeIndex);
 
         // Add a default light in case there are none
-        //
         if (m_pGltfLoader->m_lights.size() == 0)
         {
             tfNode n;
-            n.m_tranform.LookAt(PolarToVector(XM_PI / 2.0f, 0.58f)*3.5f, XMVectorSet(0, 0, 0, 0));
+            n.m_tranform.LookAt(PolarToVector(AMD_PI_OVER_2, 0.58f) * 3.5f, math::Vector4(0, 0, 0, 0));
 
             tfLight l;
             l.m_type = tfLight::LIGHT_SPOTLIGHT;
             l.m_intensity = scene.value("intensity", 1.0f);
-            l.m_color = XMVectorSet(1.0f, 1.0f, 1.0f, 0.0f);
+            l.m_color = math::Vector4(1.0f, 1.0f, 1.0f, 0.0f);
             l.m_range = 15;
-            l.m_outerConeAngle = XM_PI / 4.0f;
-            l.m_innerConeAngle = (XM_PI / 4.0f) * 0.9f;
+            l.m_outerConeAngle = AMD_PI_OVER_4;
+            l.m_innerConeAngle = AMD_PI_OVER_4 * 0.9f;
+            l.m_shadowResolution = 1024;
 
             m_pGltfLoader->AddLight(n, l);
         }
+
+        // Allocate shadow information (if any)
+        m_pRenderer->AllocateShadowMaps(m_pGltfLoader);
         
         // set default camera
-        //
         json camera = scene["camera"];
         m_activeCamera = scene.value("activeCamera", m_activeCamera);
-        XMVECTOR from = GetVector(GetElementJsonArray(camera, "defaultFrom", { 0.0, 0.0, 10.0 }));
-        XMVECTOR to = GetVector(GetElementJsonArray(camera, "defaultTo", { 0.0, 0.0, 0.0 }));
-        m_state.camera.LookAt(from, to);
-        m_roll = m_state.camera.GetYaw();
-        m_pitch = m_state.camera.GetPitch();
-        m_distance = m_state.camera.GetDistance();
+        math::Vector4 from = GetVector(GetElementJsonArray(camera, "defaultFrom", { 0.0, 0.0, 10.0 }));
+        math::Vector4 to = GetVector(GetElementJsonArray(camera, "defaultTo", { 0.0, 0.0, 0.0 }));
+        m_camera.LookAt(from, to);
 
         // set benchmarking state if enabled 
-        //
-        if (m_state.m_isBenchmarking)
+        if (m_bIsBenchmarking)
         {
             std::string deviceName;
             std::string driverVersion;
@@ -352,257 +305,140 @@ void GLTFSample::LoadScene(int sceneIndex)
     }
 }
 
+
 //--------------------------------------------------------------------------------------
 //
-// BuildUI, all UI code should be here
+// OnUpdate
 //
 //--------------------------------------------------------------------------------------
-void GLTFSample::BuildUI()
+void GLTFSample::OnUpdate()
 {
-    ImGuiStyle& style = ImGui::GetStyle();
-    style.FrameBorderSize = 1.0f;
+    ImGuiIO& io = ImGui::GetIO();
 
-    ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(250, 700), ImGuiCond_FirstUseEver);
-
-    bool opened = true;
-    ImGui::Begin("Stats", &opened);
-
-    if (ImGui::CollapsingHeader("Info", ImGuiTreeNodeFlags_DefaultOpen))
+    //If the mouse was not used by the GUI then it's for the camera
+    if (io.WantCaptureMouse)
     {
-        ImGui::Text("Resolution       : %ix%i", m_Width, m_Height);
+        io.MouseDelta.x = 0;
+        io.MouseDelta.y = 0;
+        io.MouseWheel = 0;
+    }
+    
+    // Update Camera
+    UpdateCamera(m_camera, io);
+    if (m_UIState.bUseTAA)
+    {
+        static uint32_t Seed;
+        m_camera.SetProjectionJitter(m_Width, m_Height, Seed);
     }
 
-    if (ImGui::CollapsingHeader("Animation", ImGuiTreeNodeFlags_DefaultOpen))
+    // Keyboard & Mouse
+    HandleInput(io);
+
+    // Animation Update
+    if (m_bPlay)
+        m_time += (float)m_deltaTime / 1000.0f; // animation time in seconds
+
+    if (m_pGltfLoader)
     {
-        ImGui::Checkbox("Play", &m_bPlay);
-        ImGui::SliderFloat("Time", &m_time, 0, 30);
+        m_pGltfLoader->SetAnimationTime(0, m_time);
+        m_pGltfLoader->TransformScene(0, math::Matrix4::identity());
     }
+}
+void GLTFSample::HandleInput(const ImGuiIO& io)
+{
+    auto fnIsKeyTriggered = [&io](char key) { return io.KeysDown[key] && io.KeysDownDuration[key] == 0.0f; };
+    
+    // Handle Keyboard/Mouse input here
 
-    if (ImGui::CollapsingHeader("Model Selection", ImGuiTreeNodeFlags_DefaultOpen))
-    {
-        auto getterLambda = [](void* data, int idx, const char** out_str)->bool { *out_str = ((std::vector<std::string> *)data)->at(idx).c_str(); return true; };
-        if (ImGui::Combo("model", &m_activeScene, getterLambda, &m_sceneNames, (int)m_sceneNames.size()) || (m_pGltfLoader == NULL))
-        {
-            LoadScene(m_activeScene);
+    /* MAGNIFIER CONTROLS */
+    if (fnIsKeyTriggered('L'))                       m_UIState.ToggleMagnifierLock();
+    if (fnIsKeyTriggered('M') || io.MouseClicked[2]) m_UIState.bUseMagnifier ^= 1; // middle mouse / M key toggles magnifier
 
-            //bail out as we need to reload everything
-            ImGui::End();
-            ImGui::EndFrame();
-            ImGui::NewFrame();
-            return;
-        }
-    }
+    if (io.MouseClicked[1] && m_UIState.bUseMagnifier) // right mouse click
+        m_UIState.ToggleMagnifierLock();
+}
+void GLTFSample::UpdateCamera(Camera& cam, const ImGuiIO& io)
+{
+    float yaw = cam.GetYaw();
+    float pitch = cam.GetPitch();
+    float distance = cam.GetDistance();
 
-    ImGui::SliderFloat("exposure", &m_state.exposure, 0.0f, 4.0f);
-    ImGui::SliderFloat("emissive", &m_state.emmisiveFactor, 1.0f, 1000.0f, NULL, 1.0f);
-    ImGui::SliderFloat("iblFactor", &m_state.iblFactor, 0.0f, 3.0f);
-    for (int i = 0; i < m_pGltfLoader->m_lights.size(); i++)
-    {
-        ImGui::SliderFloat(format("Light %i Intensity",i).c_str(), &m_pGltfLoader->m_lights[i].m_intensity, 0.0f, 50.0f);
-    }
-
-    const char * tonemappers[] = { "Timothy", "DX11DSK", "Reinhard", "Uncharted2Tonemap", "ACES", "No tonemapper" };
-    ImGui::Combo("tone mapper", &m_state.toneMapper, tonemappers, _countof(tonemappers));
-
-    const char * skyDomeType[] = { "Procedural Sky", "cubemap", "Simple clear" };
-    ImGui::Combo("SkyDome", &m_state.skyDomeType, skyDomeType, _countof(skyDomeType));
-
-    char *cameraControl[] = { "Orbit", "WASD", "cam #0", "cam #1", "cam #2", "cam #3" , "cam #4", "cam #5" };
-    if (m_activeCamera >= m_pGltfLoader->m_cameras.size() + 2)
-        m_activeCamera = 0;
-    ImGui::Combo("Camera", &m_activeCamera, cameraControl, min((int)(m_pGltfLoader->m_cameras.size() + 2), _countof(cameraControl)));
-
-    ImGui::Checkbox("TAA", &m_state.m_useTAA);
-    ImGui::Checkbox("Show Bounding Boxes", &m_state.bDrawBoundingBoxes);
-    ImGui::Checkbox("Show Light Frustum", &m_state.bDrawLightFrustum);
-
-    if (ImGui::Button("Set spotlight 0"))
-    {
-        int idx = m_pGltfLoader->m_lightInstances[0].m_nodeIndex;
-        m_pGltfLoader->m_nodes[idx].m_tranform.LookAt(m_state.camera.GetPosition(), m_state.camera.GetPosition() - m_state.camera.GetDirection());
-        m_pGltfLoader->m_animatedMats[idx] = m_pGltfLoader->m_nodes[idx].m_tranform.GetWorldMat();
-    }
-
-    // FreeSync HDR display mode selector
-    // 
-    if (ImGui::Button("FreeSync HDR"))
-    {
-        ImGui::OpenPopup("FreeSync HDR");
-        m_swapChain.EnumerateDisplayModes(&m_displayModesAvailable, &m_displayModesNamesAvailable);
-    }
-
-    if (ImGui::BeginPopupModal("FreeSync HDR", NULL, ImGuiWindowFlags_AlwaysAutoResize))
-    {
-        if (m_displayModesAvailable.size() == 1)
-        {
-            ImGui::Text("\nOpps! This window is not on a FreeSync HDR monitor so the only available mode is SDR.\n\n");
-            ImGui::Text("If you have a FreeSync HDR monitor move this window to that monitor and try again\n\n");
-            if (ImGui::Button("Cancel", ImVec2(120, 0))) { ImGui::CloseCurrentPopup(); }
-            ImGui::EndPopup();
-        }
-        else
-        {
-            if (m_swapChain.IsFullScreen() == false)
-            {
-                ImGui::Text("\nFreeSync HDR modes are only available in in fullscreen mode, please press ALT + ENTER for fun!\n\n");
-                if (ImGui::Button("Cancel", ImVec2(120, 0))) { ImGui::CloseCurrentPopup(); }
-                ImGui::EndPopup();
-            }
-            else
-            {
-                ImGui::Text("\nChoose video mode\n\n");
-
-                static DisplayModes selectedDisplayModeIdx;
-                for (int i = 0; i < m_displayModesAvailable.size(); i++)
-                {
-                    ImGui::RadioButton(m_displayModesNamesAvailable[i], (int*)&selectedDisplayModeIdx, m_displayModesAvailable[i]);
-                }
-                ImGui::Separator();
-                
-                if (ImGui::Button("OK", ImVec2(120, 0)))
-                {
-                    OnResize(m_Width, m_Height, selectedDisplayModeIdx);
-                    ImGui::CloseCurrentPopup();
-                }
-                ImGui::SameLine();
-                if (ImGui::Button("Cancel", ImVec2(120, 0))) { ImGui::CloseCurrentPopup(); }
-                ImGui::SetItemDefaultFocus();
-                ImGui::EndPopup();
-            }
-        }
-    }
-
-    if (ImGui::CollapsingHeader("Profiler", ImGuiTreeNodeFlags_DefaultOpen))
-    {
-        std::vector<TimeStamp> timeStamps = m_Node->GetTimingValues();
-        if (timeStamps.size() > 0)
-        {
-            for (uint32_t i = 0; i < timeStamps.size(); i++)
-            {
-                ImGui::Text("%-22s: %7.1f", timeStamps[i].m_label.c_str(), timeStamps[i].m_microseconds);
-            }
-
-            //scrolling data and average computing
-            static float values[128];
-            values[127] = timeStamps.back().m_microseconds;
-            for (uint32_t i = 0; i < 128 - 1; i++) { values[i] = values[i + 1]; }
-            ImGui::PlotLines("", values, 128, 0, "GPU frame time (us)", 0.0f, 30000.0f, ImVec2(0, 80));
-        }
-    }
-
-    ImGui::End();
+    cam.UpdatePreviousMatrices(); // set previous view matrix
 
     // Sets Camera based on UI selection (WASD, Orbit or any of the GLTF cameras)
-    //
-    ImGuiIO& io = ImGui::GetIO();
+    if ((io.KeyCtrl == false) && (io.MouseDown[0] == true))
     {
-        //If the mouse was not used by the GUI then it's for the camera
-        //
-        if (io.WantCaptureMouse)
-        {
-            io.MouseDelta.x = 0;
-            io.MouseDelta.y = 0;
-            io.MouseWheel = 0;
-        }
-        else if ((io.KeyCtrl == false) && (io.MouseDown[0] == true))
-        {
-            m_roll -= io.MouseDelta.x / 100.f;
-            m_pitch += io.MouseDelta.y / 100.f;
-        }
+        yaw -= io.MouseDelta.x / 100.f;
+        pitch += io.MouseDelta.y / 100.f;
+    }
 
-        // Choose camera movement depending on setting
-        //
-        if (m_activeCamera == 0)
-        {
-            //  Orbiting
-            //
-            m_distance -= (float)io.MouseWheel / 3.0f;
-            m_distance = std::max<float>(m_distance, 0.1f);
+    // Choose camera movement depending on setting
+    if (m_activeCamera == 0)
+    {
+        //  Orbiting
+        distance -= (float)io.MouseWheel / 3.0f;
+        distance = std::max<float>(distance, 0.1f);
 
-            bool panning = (io.KeyCtrl == true) && (io.MouseDown[0] == true);
+        bool panning = (io.KeyCtrl == true) && (io.MouseDown[0] == true);
 
-            m_state.camera.UpdateCameraPolar(m_roll, m_pitch, panning ? -io.MouseDelta.x / 100.0f : 0.0f, panning ? io.MouseDelta.y / 100.0f : 0.0f, m_distance);
-        }
-        else if (m_activeCamera == 1)
-        {
-            //  WASD
-            //
-            m_state.camera.UpdateCameraWASD(m_roll, m_pitch, io.KeysDown, io.DeltaTime);
-        }
-        else if (m_activeCamera > 1)
-        {
-            // Use a camera from the GLTF
-            // 
-            m_pGltfLoader->GetCamera(m_activeCamera - 2, &m_state.camera);
-            m_roll = m_state.camera.GetYaw();
-            m_pitch = m_state.camera.GetPitch();
-        }
+        cam.UpdateCameraPolar(yaw, pitch, 
+            panning ? -io.MouseDelta.x / 100.0f : 0.0f, 
+            panning ? io.MouseDelta.y / 100.0f : 0.0f, 
+            distance);
+    }
+    else if (m_activeCamera == 1)
+    {
+        //  WASD
+        cam.UpdateCameraWASD(yaw, pitch, io.KeysDown, io.DeltaTime);
+    }
+    else if (m_activeCamera > 1)
+    {
+        // Use a camera from the GLTF
+        m_pGltfLoader->GetCamera(m_activeCamera - 2, &cam);
     }
 }
 
 //--------------------------------------------------------------------------------------
 //
-// OnRender, updates the state from the UI, animates, transforms and renders the scene
+// OnRender
 //
 //--------------------------------------------------------------------------------------
 void GLTFSample::OnRender()
 {
-    // Get timings
-    //
-    double timeNow = MillisecondsNow();
-    float deltaTime = (float)(timeNow - m_lastFrameTime);
-    m_lastFrameTime = timeNow;
+    // Do any start of frame necessities
+    BeginFrame();
 
     ImGUI_UpdateIO();
     ImGui::NewFrame();
 
     if (m_loadingScene)
     {
-        // the scene loads in chuncks, that way we can show a progress bar
+        // the scene loads in chunks, that way we can show a progress bar
         static int loadingStage = 0;
-        loadingStage = m_Node->LoadScene(m_pGltfLoader, loadingStage);
+        loadingStage = m_pRenderer->LoadScene(m_pGltfLoader, loadingStage);
         if (loadingStage == 0)
         {
             m_time = 0;
             m_loadingScene = false;
         }
     }
-    else if (m_pGltfLoader && m_state.m_isBenchmarking)
+    else if (m_pGltfLoader && m_bIsBenchmarking)
     {
-        // benchmarking takes control of the time, and exits the app when the animation is done
-        std::vector<TimeStamp> timeStamps = m_Node->GetTimingValues();
-
-        m_time = BenchmarkLoop(timeStamps, &m_state.camera, &m_state.m_pScreenShotName);
+        // Benchmarking takes control of the time, and exits the app when the animation is done
+        std::vector<TimeStamp> timeStamps = m_pRenderer->GetTimingValues();
+        m_time = BenchmarkLoop(timeStamps, &m_camera, m_pRenderer->GetScreenshotFileName());
     }
     else
     {
-        // Build the UI. Note that the rendering of the UI happens later.
-        BuildUI();
-
-        // Set animation time
-        //
-        if (m_bPlay)
-        {
-            m_time += (float)deltaTime / 1000.0f;
-        }
+        BuildUI();  // UI logic. Note that the rendering of the UI happens later.
+        OnUpdate(); // Update camera, handle keyboard/mouse input
     }
 
-    // Animate and transform the scene
-    //
-    if (m_pGltfLoader)
-    {
-        m_pGltfLoader->SetAnimationTime(0, m_time);
-        m_pGltfLoader->TransformScene(0, XMMatrixIdentity());
-    }
+    // Do Render frame using AFR
+    m_pRenderer->OnRender(&m_UIState, m_camera, &m_swapChain);
 
-    m_state.time = m_time;
-
-    // Do Render frame using AFR 
-    //
-    m_Node->OnRender(&m_state, &m_swapChain);
-
-    m_swapChain.Present();
+    // Framework will handle Present and some other end of frame logic
+    EndFrame();
 }
 
 
@@ -616,7 +452,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
     LPSTR lpCmdLine,
     int nCmdShow)
 {
-    LPCSTR Name = "SampleDX12 v1.3";
+    LPCSTR Name = "SampleDX12 v1.4";
 
     // create new DX sample
     return RunFramework(hInstance, lpCmdLine, nCmdShow, new GLTFSample(Name));
