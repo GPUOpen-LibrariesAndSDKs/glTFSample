@@ -131,7 +131,7 @@ void GLTFSample::OnCreate()
     ImGUI_Init((void *)m_windowHwnd);
     m_UIState.Initialize();
 
-    OnResize();
+    OnResize(true);
     OnUpdateDisplay();
 
     // Init Camera, looking at the origin
@@ -196,15 +196,15 @@ bool GLTFSample::OnEvent(MSG msg)
 // OnResize
 //
 //--------------------------------------------------------------------------------------
-void GLTFSample::OnResize()
+void GLTFSample::OnResize(bool resizeRender)
 {
 	// Destroy resources (if we are not minimized)
-    if (m_Width && m_Height && m_pRenderer)
+    if (resizeRender && m_Width && m_Height && m_pRenderer)
     {
         m_pRenderer->OnDestroyWindowSizeDependentResources();
         m_pRenderer->OnCreateWindowSizeDependentResources(&m_swapChain, m_Width, m_Height);
     }
-	
+
     m_camera.SetFov(AMD_PI_OVER_4, m_Width, m_Height, 0.1f, 1000.0f);
 }
 
@@ -283,7 +283,7 @@ void GLTFSample::LoadScene(int sceneIndex)
 
         // Allocate shadow information (if any)
         m_pRenderer->AllocateShadowMaps(m_pGltfLoader);
-        
+
         // set default camera
         json camera = scene["camera"];
         m_activeCamera = scene.value("activeCamera", m_activeCamera);
@@ -322,7 +322,7 @@ void GLTFSample::OnUpdate()
         io.MouseDelta.y = 0;
         io.MouseWheel = 0;
     }
-    
+
     // Update Camera
     UpdateCamera(m_camera, io);
     if (m_UIState.bUseTAA)
@@ -330,6 +330,8 @@ void GLTFSample::OnUpdate()
         static uint32_t Seed;
         m_camera.SetProjectionJitter(m_Width, m_Height, Seed);
     }
+    else
+        m_camera.SetProjectionJitter(0.f, 0.f);
 
     // Keyboard & Mouse
     HandleInput(io);
@@ -347,7 +349,7 @@ void GLTFSample::OnUpdate()
 void GLTFSample::HandleInput(const ImGuiIO& io)
 {
     auto fnIsKeyTriggered = [&io](char key) { return io.KeysDown[key] && io.KeysDownDuration[key] == 0.0f; };
-    
+
     // Handle Keyboard/Mouse input here
 
     /* MAGNIFIER CONTROLS */
@@ -375,6 +377,10 @@ void GLTFSample::UpdateCamera(Camera& cam, const ImGuiIO& io)
     // Choose camera movement depending on setting
     if (m_activeCamera == 0)
     {
+        // If nothing has changed, don't calculate an update (we are getting micro changes in view causing bugs)
+        if (!io.MouseWheel && (!io.MouseDown[0] || (!io.MouseDelta.x && !io.MouseDelta.y) ))
+            return;
+
         //  Orbiting
         distance -= (float)io.MouseWheel / 3.0f;
         distance = std::max<float>(distance, 0.1f);
@@ -452,7 +458,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
     LPSTR lpCmdLine,
     int nCmdShow)
 {
-    LPCSTR Name = "SampleDX12 v1.4";
+    LPCSTR Name = "SampleDX12 v1.4.1";
 
     // create new DX sample
     return RunFramework(hInstance, lpCmdLine, nCmdShow, new GLTFSample(Name));

@@ -234,7 +234,7 @@ void GLTFSample::BuildUI()
             {
                 if (m_fullscreenMode != PRESENTATIONMODE_WINDOWED)
                 {
-                    UpdateDisplay(m_displayModesAvailable[m_currentDisplayModeNamesIndex], m_disableLocalDimming);
+                    UpdateDisplay(m_disableLocalDimming);
                     m_previousDisplayModeNamesIndex = m_currentDisplayModeNamesIndex;
                 }
                 else if (CheckIfWindowModeHdrOn() &&
@@ -242,7 +242,7 @@ void GLTFSample::BuildUI()
                         m_displayModesAvailable[m_currentDisplayModeNamesIndex] == DISPLAYMODE_HDR10_2084 ||
                         m_displayModesAvailable[m_currentDisplayModeNamesIndex] == DISPLAYMODE_HDR10_SCRGB))
                 {
-                    UpdateDisplay(m_displayModesAvailable[m_currentDisplayModeNamesIndex], m_disableLocalDimming);
+                    UpdateDisplay(m_disableLocalDimming);
                     m_previousDisplayModeNamesIndex = m_currentDisplayModeNamesIndex;
                 }
                 else
@@ -266,7 +266,7 @@ void GLTFSample::BuildUI()
             {
                 static bool selectedDisableLocaldimmingSetting = false;
                 if (ImGui::Checkbox("Disable Local Dimming", &selectedDisableLocaldimmingSetting))
-                    UpdateDisplay(m_displayModesAvailable[m_currentDisplayModeNamesIndex], selectedDisableLocaldimmingSetting);
+                    UpdateDisplay(selectedDisableLocaldimmingSetting);
             }
         }
 

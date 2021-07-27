@@ -1,7 +1,6 @@
 variables:
   SampleName: GLTFSample
   CMakeConfig: -G "Visual Studio 16 2019" -A x64
-  CaudronMediaUrl: http://isvgit.amd.com/raguaviv/cauldron-media/-/archive/master/cauldron-media-master.zip
   GIT_SUBMODULE_STRATEGY: normal
 
 stages:
@@ -42,7 +41,6 @@ package_sample:
     - build_vk
   script:
   - copy %VULKAN_SDK%\Bin\glslc.exe bin
-  - move NOTICES.txt %SampleName%
   - echo cd .\bin\ > %SampleName%_VK.bat
   - echo start %SampleName%_VK.exe >> %SampleName%_VK.bat
   - echo cd .\bin\ > %SampleName%_DX12.bat
@@ -51,7 +49,7 @@ package_sample:
       name: "%SampleName%-%CI_COMMIT_TAG%-%CI_COMMIT_REF_NAME%-%CI_COMMIT_SHORT_SHA%"
       paths:
       - "bin/"
-      - "NOTICES.txt"
+      - "license.txt"
       - "media/cauldron-media/"
       - "%SampleName%_VK.bat"
       - "%SampleName%_DX12.bat"

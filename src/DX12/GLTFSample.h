@@ -34,7 +34,7 @@ public:
     void OnDestroy() override;
     void OnRender() override;
     bool OnEvent(MSG msg) override;
-    void OnResize() override;
+    void OnResize(bool resizeRender) override;
     void OnUpdateDisplay() override;
 
     void BuildUI();

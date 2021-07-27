@@ -505,7 +505,7 @@ void Renderer::OnRender(const UIState* pState, const Camera& Cam, SwapChain* pSw
         pPerFrame->wireframeOptions.setY(pState->WireframeColor[1]);
         pPerFrame->wireframeOptions.setZ(pState->WireframeColor[2]);
         pPerFrame->wireframeOptions.setW(pState->WireframeMode == UIState::WireframeMode::WIREFRAME_MODE_SOLID_COLOR ? 1.0f : 0.0f);
-
+        pPerFrame->lodBias = 0.0f;
         m_pGLTFTexturesAndBuffers->SetPerFrameConstants();
         m_pGLTFTexturesAndBuffers->SetSkinningMatricesForSkeletons();
     }

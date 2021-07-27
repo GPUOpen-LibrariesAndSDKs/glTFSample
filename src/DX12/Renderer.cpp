@@ -443,7 +443,7 @@ void Renderer::OnRender(const UIState* pState, const Camera& Cam, SwapChain* pSw
         pPerFrame->wireframeOptions.setY(pState->WireframeColor[1]);
         pPerFrame->wireframeOptions.setZ(pState->WireframeColor[2]);
         pPerFrame->wireframeOptions.setW(pState->WireframeMode == UIState::WireframeMode::WIREFRAME_MODE_SOLID_COLOR ? 1.0f : 0.0f);
-
+        pPerFrame->lodBias = 0.0f;
         m_pGLTFTexturesAndBuffers->SetPerFrameConstants();
         m_pGLTFTexturesAndBuffers->SetSkinningMatricesForSkeletons();
     }
@@ -475,8 +475,9 @@ void Renderer::OnRender(const UIState* pState, const Camera& Cam, SwapChain* pSw
             SetViewportAndScissor(pCmdLst1, 0, 0, ShadowMap->ShadowResolution, ShadowMap->ShadowResolution);
             pCmdLst1->OMSetRenderTargets(0, NULL, false, &m_ShadowMapPoolDSV.GetCPU(ShadowMap->ShadowIndex));
             
-            GltfDepthPass::per_frame* cbDepthPerFrame = m_GLTFDepth->SetPerFrameConstants();
-            cbDepthPerFrame->mViewProj = pPerFrame->lights[ShadowMap->LightIndex].mLightViewProj;
+            per_frame* cbDepthPerFrame = m_GLTFDepth->SetPerFrameConstants();
+            cbDepthPerFrame->mCameraCurrViewProj = pPerFrame->lights[ShadowMap->LightIndex].mLightViewProj;
+            cbDepthPerFrame->lodBias = 0.0f;
 
             m_GLTFDepth->Draw(pCmdLst1);
 
