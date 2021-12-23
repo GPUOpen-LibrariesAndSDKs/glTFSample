@@ -139,8 +139,8 @@ void GLTFSample::BuildUI()
             if (ImGui::Button("Set Spot Light 0 to Camera's View"))
             {
                 int idx = m_pGltfLoader->m_lightInstances[0].m_nodeIndex;
-                m_pGltfLoader->m_nodes[idx].m_tranform.LookAt(m_camera.GetPosition(), m_camera.GetPosition() - m_camera.GetDirection());
-                m_pGltfLoader->m_animatedMats[idx] = m_pGltfLoader->m_nodes[idx].m_tranform.GetWorldMat();
+                m_pGltfLoader->m_nodes[idx].m_transform.LookAt(m_camera.GetPosition(), m_camera.GetPosition() - m_camera.GetDirection());
+                m_pGltfLoader->m_animatedMats[idx] = m_pGltfLoader->m_nodes[idx].m_transform.GetWorldMat();
             }
         }
 

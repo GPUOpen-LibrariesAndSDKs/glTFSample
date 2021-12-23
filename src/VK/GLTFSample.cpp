@@ -262,7 +262,7 @@ void GLTFSample::LoadScene(int sceneIndex)
         if (m_pGltfLoader->m_lights.size() == 0)
         {
             tfNode n;
-            n.m_tranform.LookAt(PolarToVector(AMD_PI_OVER_2, 0.58f) * 3.5f, math::Vector4(0, 0, 0, 0));
+            n.m_transform.LookAt(PolarToVector(AMD_PI_OVER_2, 0.58f) * 3.5f, math::Vector4(0, 0, 0, 0));
 
             tfLight l;
             l.m_type = tfLight::LIGHT_SPOTLIGHT;
