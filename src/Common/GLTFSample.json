@@ -56,21 +56,6 @@
       }
     },
     {
-      "name": "BusterDrone",
-      "directory": "..\\media\\cauldron-media\\buster_drone\\",
-      "filename": "busterDrone.gltf",
-      "TAA": true,
-      "toneMapper": 0,
-      "iblFactor": 1,
-      "emmisiveFactor": 30,
-      "intensity": 50,
-      "exposure": 1,
-      "camera": {
-        "defaultFrom": [ 0, 0, 3.5 ],
-        "defaultTo": [ 0, 0, 0 ]
-      }
-    },
-    {
       "name": "BoomBox",
       "directory": "..\\media\\cauldron-media\\BoomBox\\GLTF\\",
       "filename": "BoomBox.gltf",
