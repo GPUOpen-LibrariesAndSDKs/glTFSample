@@ -86,10 +86,23 @@ void Renderer::OnCreate(Device *pDevice, SwapChain *pSwapChain, float FontSize)
     {
         VkAttachmentDescription depthAttachments;
         AttachClearBeforeUse(VK_FORMAT_D32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, &depthAttachments);
-        m_Render_pass_shadow = CreateRenderPassOptimal(m_pDevice->GetDevice(), 0, NULL, &depthAttachments);
+        m_Render_pass_shadow = CreateRenderPassOptimal(m_pDevice->GetDevice(), 0, NULL, &depthAttachments, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
     }
 
-    m_SkyDome.OnCreate(pDevice, m_RenderPassJustDepthAndHdr.GetRenderPass(), &m_UploadHeap, VK_FORMAT_R16G16B16A16_SFLOAT, &m_ResourceViewHeaps, &m_ConstantBufferRing, &m_VidMemBufferPool, "..\\media\\cauldron-media\\envmaps\\papermill\\diffuse.dds", "..\\media\\cauldron-media\\envmaps\\papermill\\specular.dds", VK_SAMPLE_COUNT_1_BIT);
+    constexpr bool bInvertedDepth = false;
+    m_SkyDome.OnCreate(
+        pDevice,
+        m_RenderPassJustDepthAndHdr.GetRenderPass(),
+        &m_UploadHeap,
+        VK_FORMAT_R16G16B16A16_SFLOAT,
+        &m_ResourceViewHeaps,
+        &m_ConstantBufferRing,
+        &m_VidMemBufferPool,
+        "..\\media\\cauldron-media\\envmaps\\papermill\\diffuse.dds",
+        "..\\media\\cauldron-media\\envmaps\\papermill\\specular.dds",
+        VK_SAMPLE_COUNT_1_BIT,
+        bInvertedDepth
+    );
     m_SkyDomeProc.OnCreate(pDevice, m_RenderPassJustDepthAndHdr.GetRenderPass(), &m_UploadHeap, VK_FORMAT_R16G16B16A16_SFLOAT, &m_ResourceViewHeaps, &m_ConstantBufferRing, &m_VidMemBufferPool, VK_SAMPLE_COUNT_1_BIT);
     m_Wireframe.OnCreate(pDevice, m_RenderPassJustDepthAndHdr.GetRenderPass(), &m_ResourceViewHeaps, &m_ConstantBufferRing, &m_VidMemBufferPool, VK_SAMPLE_COUNT_1_BIT);
     m_WireframeBox.OnCreate(pDevice, &m_ResourceViewHeaps, &m_ConstantBufferRing, &m_VidMemBufferPool);
@@ -190,7 +203,7 @@ void Renderer::OnCreateWindowSizeDependentResources(SwapChain *pSwapChain, uint3
     m_DownSample.OnCreateWindowSizeDependentResources(Width, Height, &m_GBuffer.m_HDR, 6); //downsample the HDR texture 6 times
     m_Bloom.OnCreateWindowSizeDependentResources(Width / 2, Height / 2, m_DownSample.GetTexture(), 6, &m_GBuffer.m_HDR);
     m_TAA.OnCreateWindowSizeDependentResources(Width, Height, &m_GBuffer);
-    m_MagnifierPS.OnCreateWindowSizeDependentResources(&m_GBuffer.m_HDR);
+	m_MagnifierPS.OnCreateWindowSizeDependentResources(Width, Height);
     m_bMagResourceReInit = true;
 }
 
@@ -541,8 +554,8 @@ void Renderer::OnRender(const UIState* pState, const Camera& Cam, SwapChain* pSw
             SetViewportAndScissor(cmdBuf1, 0, 0, ShadowMap->ShadowResolution, ShadowMap->ShadowResolution);
 
             // Set per frame constant buffer values
-            GltfDepthPass::per_frame* cbPerFrame = m_GLTFDepth->SetPerFrameConstants();
-            cbPerFrame->mViewProj = pPerFrame->lights[ShadowMap->LightIndex].mLightViewProj;
+            per_frame* cbPerFrame = m_GLTFDepth->SetPerFrameConstants();
+            cbPerFrame->mCameraCurrViewProj = pPerFrame->lights[ShadowMap->LightIndex].mLightViewProj;
 
             m_GLTFDepth->Draw(cmdBuf1);
 
@@ -773,7 +786,7 @@ void Renderer::OnRender(const UIState* pState, const Camera& Cam, SwapChain* pSw
         }
 
         // Note: assumes the input texture (specified in OnCreateWindowSizeDependentResources()) is in read state
-        m_MagnifierPS.Draw(cmdBuf1, pState->MagnifierParams);
+        m_MagnifierPS.Draw(cmdBuf1, pState->MagnifierParams, m_GBuffer.m_HDRSRV);
         m_GPUTimer.GetTimeStamp(cmdBuf1, "Magnifier");
     }
 
