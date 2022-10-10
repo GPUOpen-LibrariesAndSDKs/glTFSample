@@ -465,7 +465,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
     LPSTR lpCmdLine,
     int nCmdShow)
 {
-    LPCSTR Name = "SampleVK v1.4.1";
+    LPCSTR Name = "SampleVK v1.4.5";
 
     // create new Vulkan sample
     return RunFramework(hInstance, lpCmdLine, nCmdShow, new GLTFSample(Name));

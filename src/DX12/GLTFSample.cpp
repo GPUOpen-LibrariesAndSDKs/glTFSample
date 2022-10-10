@@ -458,7 +458,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
     LPSTR lpCmdLine,
     int nCmdShow)
 {
-    LPCSTR Name = "SampleDX12 v1.4.1";
+    LPCSTR Name = "SampleDX12 v1.4.5";
 
     // create new DX sample
     return RunFramework(hInstance, lpCmdLine, nCmdShow, new GLTFSample(Name));
