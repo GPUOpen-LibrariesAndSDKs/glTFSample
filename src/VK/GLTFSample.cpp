@@ -262,7 +262,7 @@ void GLTFSample::LoadScene(int sceneIndex)
         if (m_pGltfLoader->m_lights.size() == 0)
         {
             tfNode n;
-            n.m_tranform.LookAt(PolarToVector(AMD_PI_OVER_2, 0.58f) * 3.5f, math::Vector4(0, 0, 0, 0));
+            n.m_transform.LookAt(PolarToVector(AMD_PI_OVER_2, 0.58f) * 3.5f, math::Vector4(0, 0, 0, 0));
 
             tfLight l;
             l.m_type = tfLight::LIGHT_SPOTLIGHT;
@@ -420,12 +420,12 @@ void GLTFSample::OnRender()
     // Do any start of frame necessities
 	BeginFrame();
 
-    ImGUI_UpdateIO();
+    ImGUI_UpdateIO(m_Width, m_Height);
     ImGui::NewFrame();
 
     if (m_loadingScene)
     {
-        // the scene loads in chuncks, that way we can show a progress bar
+        // the scene loads in chunks, that way we can show a progress bar
         static int loadingStage = 0;
         loadingStage = m_pRenderer->LoadScene(m_pGltfLoader, loadingStage);
         if (loadingStage == 0)
@@ -465,7 +465,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
     LPSTR lpCmdLine,
     int nCmdShow)
 {
-    LPCSTR Name = "SampleVK v1.4.1";
+    LPCSTR Name = "SampleVK v1.4.5";
 
     // create new Vulkan sample
     return RunFramework(hInstance, lpCmdLine, nCmdShow, new GLTFSample(Name));

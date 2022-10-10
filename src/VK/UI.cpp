@@ -138,8 +138,8 @@ void GLTFSample::BuildUI()
             if (ImGui::Button("Set Spot Light 0 to Camera's View"))
             {
                 int idx = m_pGltfLoader->m_lightInstances[0].m_nodeIndex;
-                m_pGltfLoader->m_nodes[idx].m_tranform.LookAt(m_camera.GetPosition(), m_camera.GetPosition() - m_camera.GetDirection());
-                m_pGltfLoader->m_animatedMats[idx] = m_pGltfLoader->m_nodes[idx].m_tranform.GetWorldMat();
+                m_pGltfLoader->m_nodes[idx].m_transform.LookAt(m_camera.GetPosition(), m_camera.GetPosition() - m_camera.GetDirection());
+                m_pGltfLoader->m_animatedMats[idx] = m_pGltfLoader->m_nodes[idx].m_transform.GetWorldMat();
             }
         }
 
@@ -270,7 +270,7 @@ void GLTFSample::BuildUI()
             if (m_displayModesAvailable[m_currentDisplayModeNamesIndex] == DisplayMode::DISPLAYMODE_FSHDR_Gamma22 ||
                 m_displayModesAvailable[m_currentDisplayModeNamesIndex] == DisplayMode::DISPLAYMODE_FSHDR_SCRGB)
             {
-                if (ImGui::Checkbox("Enable Local Dimming", &m_enableLocalDimming))
+                if (ImGui::Checkbox("Disable Local Dimming", &m_disableLocalDimming))
                 {
                     OnLocalDimmingChanged();
                 }

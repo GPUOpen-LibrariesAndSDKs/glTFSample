@@ -88,8 +88,20 @@ void Renderer::OnCreate(Device* pDevice, SwapChain *pSwapChain, float FontSize)
     m_ResourceViewHeaps.AllocCBV_SRV_UAVDescriptor(1, &m_ShadowMaskSRV);
 #endif
 
-    m_SkyDome.OnCreate(pDevice, &m_UploadHeap, &m_ResourceViewHeaps, &m_ConstantBufferRing, &m_VidMemBufferPool, "..\\media\\cauldron-media\\envmaps\\papermill\\diffuse.dds", "..\\media\\cauldron-media\\envmaps\\papermill\\specular.dds", DXGI_FORMAT_R16G16B16A16_FLOAT, 4);
-    m_SkyDomeProc.OnCreate(pDevice, &m_ResourceViewHeaps, &m_ConstantBufferRing, &m_VidMemBufferPool, DXGI_FORMAT_R16G16B16A16_FLOAT, 1);
+    constexpr bool bInvertedDepth = false;
+    m_SkyDome.OnCreate(
+        pDevice,
+        &m_UploadHeap,
+        &m_ResourceViewHeaps,
+        &m_ConstantBufferRing,
+        &m_VidMemBufferPool,
+        "..\\media\\cauldron-media\\envmaps\\papermill\\diffuse.dds",
+        "..\\media\\cauldron-media\\envmaps\\papermill\\specular.dds",
+        DXGI_FORMAT_R16G16B16A16_FLOAT,
+        4,
+        bInvertedDepth
+    );
+    m_SkyDomeProc.OnCreate(pDevice, &m_ResourceViewHeaps, &m_ConstantBufferRing, &m_VidMemBufferPool, DXGI_FORMAT_R16G16B16A16_FLOAT, 1, bInvertedDepth);
     m_Wireframe.OnCreate(pDevice, &m_ResourceViewHeaps, &m_ConstantBufferRing, &m_VidMemBufferPool, DXGI_FORMAT_R16G16B16A16_FLOAT, 1);
     m_WireframeBox.OnCreate(pDevice, &m_ResourceViewHeaps, &m_ConstantBufferRing, &m_VidMemBufferPool);
     m_DownSample.OnCreate(pDevice, &m_ResourceViewHeaps, &m_ConstantBufferRing, &m_VidMemBufferPool, DXGI_FORMAT_R16G16B16A16_FLOAT);
@@ -403,7 +415,13 @@ void Renderer::AllocateShadowMaps(GLTFCommon* pGLTFCommon)
         std::vector<SceneShadowInfo>::iterator CurrentShadow = m_shadowMapPool.begin();
         for( uint32_t i = 0; CurrentShadow < m_shadowMapPool.end(); ++i, ++CurrentShadow)
         {
-            CurrentShadow->ShadowMap.InitDepthStencil(m_pDevice, "m_pShadowMap", &CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_D32_FLOAT, CurrentShadow->ShadowResolution, CurrentShadow->ShadowResolution, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL));
+            constexpr float fClearValue = 1.0f;
+            CurrentShadow->ShadowMap.InitDepthStencil(
+                m_pDevice,
+                "m_pShadowMap",
+                &CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_D32_FLOAT, CurrentShadow->ShadowResolution, CurrentShadow->ShadowResolution, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL),
+                fClearValue
+            );
             CurrentShadow->ShadowMap.CreateDSV(CurrentShadow->ShadowIndex, &m_ShadowMapPoolDSV);
             CurrentShadow->ShadowMap.CreateSRV(CurrentShadow->ShadowIndex, &m_ShadowMapPoolSRV);
         }
